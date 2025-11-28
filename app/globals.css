@@ -1,8 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Beige background and dark text to match AgriLink theme */
+  --background: #f7f0de;
+  --foreground: #1f2933;
 }
 
 @theme inline {
