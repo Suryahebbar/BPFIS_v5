@@ -53,8 +53,27 @@ export default function LandIntegrationPage() {
   // Load user's land details and integration status
   useEffect(() => {
     loadUserLandDetails();
+    loadReadyStatus();
     loadIntegrationRequests();
   }, []);
+
+  const loadReadyStatus = async () => {
+    try {
+      console.log('Loading ready status from database...');
+      const response = await fetch('/api/farmer/land-integration/ready-status');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Ready status response:', data);
+        setReadyToIntegrate(data.readyToIntegrate || false);
+        console.log('Set ready status to:', data.readyToIntegrate);
+      } else {
+        const errorData = await response.json();
+        console.error('Failed to load ready status:', errorData);
+      }
+    } catch (err) {
+      console.error('Failed to load ready status:', err);
+    }
+  };
 
   const loadUserLandDetails = async () => {
     try {
@@ -100,26 +119,37 @@ export default function LandIntegrationPage() {
 
     try {
       setLoading(true);
+      const newReadyState = !readyToIntegrate;
+      console.log('Toggling ready status from', readyToIntegrate, 'to', newReadyState);
+      
       const response = await fetch('/api/farmer/land-integration/ready-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ready: !readyToIntegrate })
+        body: JSON.stringify({ ready: newReadyState })
       });
 
       if (response.ok) {
-        setReadyToIntegrate(!readyToIntegrate);
-        setSuccessMessage(readyToIntegrate ? 
-          'You are no longer marked as ready to integrate' : 
-          'You are now marked as ready to integrate. Finding neighbours...'
+        const data = await response.json();
+        console.log('Toggle response:', data);
+        // Use the actual response from the database
+        setReadyToIntegrate(data.readyToIntegrate);
+        setSuccessMessage(data.readyToIntegrate ? 
+          'You are now marked as ready to integrate. Finding neighbours...' : 
+          'You are no longer marked as ready to integrate'
         );
         
-        if (!readyToIntegrate) {
+        if (data.readyToIntegrate) {
           findNeighbouringLands();
         } else {
           setNeighbouringLands([]);
         }
+      } else {
+        const errorData = await response.json();
+        console.error('Toggle error response:', errorData);
+        setError(errorData.error || 'Failed to update integration status');
       }
     } catch (err) {
+      console.error('Toggle error:', err);
       setError('Failed to update integration status');
     } finally {
       setLoading(false);

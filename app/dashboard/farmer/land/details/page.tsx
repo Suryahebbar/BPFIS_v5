@@ -422,7 +422,7 @@ export default function LandDetailsPage() {
     // MAIN compute function (updated to auto-calculate side lengths)
     btnCompute.addEventListener('click', function () {
       if (!closed) { alert('Complete polygon first'); return; }
-      const latC = parseFloat(inLat.value), lonC = parseFloat(inLon.value);
+      const latC = parseFloat(inLon.value), lonC = parseFloat(inLat.value);
       if (isNaN(latC) || isNaN(lonC)) { alert('Enter valid centroid'); return; }
 
       // Auto-calculate side lengths from pixel coordinates
@@ -528,6 +528,7 @@ export default function LandDetailsPage() {
       };
 
       // Save to database with calculated data
+      console.log('DEBUG: Frontend computed coordinates - latC:', latC, 'lonC:', lonC);
       const computedData: LandData = {
         centroidLatitude: latC,
         centroidLongitude: lonC,
@@ -554,12 +555,12 @@ export default function LandDetailsPage() {
 
     // Make restoreLandData available globally
     (window as any).restoreLandData = (savedData: LandData) => {
-      // Restore centroid inputs
-      if (inLat && savedData.centroidLatitude) {
-        inLat.value = savedData.centroidLatitude.toString();
+      // Restore centroid inputs (swapped to match corrected logic)
+      if (inLat && savedData.centroidLongitude) {
+        inLat.value = savedData.centroidLongitude.toString();
       }
-      if (inLon && savedData.centroidLongitude) {
-        inLon.value = savedData.centroidLongitude.toString();
+      if (inLon && savedData.centroidLatitude) {
+        inLon.value = savedData.centroidLatitude.toString();
       }
       
       // Restore output display

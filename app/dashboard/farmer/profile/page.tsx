@@ -187,26 +187,7 @@ export default function FarmerProfilePage() {
                 )}
 
                 {/* RTC Details */}
-                {landDetails.rtcDetails && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <div className="text-[#1f3b2c]">
-                      <span className="font-semibold">Survey Number: </span>
-                      {landDetails.rtcDetails.surveyNumber || '—'}
-                    </div>
-                    <div className="text-[#1f3b2c]">
-                      <span className="font-semibold">Extent: </span>
-                      {landDetails.rtcDetails.extent ? `${landDetails.rtcDetails.extent} acres` : '—'}
-                    </div>
-                    <div className="text-[#1f3b2c]">
-                      <span className="font-semibold">Location: </span>
-                      {landDetails.rtcDetails.location || '—'}
-                    </div>
-                    <div className="text-[#1f3b2c]">
-                      <span className="font-semibold">Soil Type: </span>
-                      {landDetails.rtcDetails.soilType || '—'}
-                    </div>
-                  </div>
-                )}
+                {/* RTC details removed - already displayed in RTC section above */}
 
                 {/* Geographic Coordinates */}
                 {landDetails.landData && (

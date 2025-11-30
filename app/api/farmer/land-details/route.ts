@@ -69,6 +69,9 @@ export async function POST(request: NextRequest) {
       verticesCount: vertices?.length,
       hasImage: !!sketchImage
     });
+
+    console.log('DEBUG: Backend received coordinates - centroidLatitude:', centroidLatitude, 'centroidLongitude:', centroidLongitude);
+    console.log('DEBUG: Coordinate types - centroidLatitude:', typeof centroidLatitude, 'centroidLongitude:', typeof centroidLongitude);
     
     if (!userId) {
       return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
