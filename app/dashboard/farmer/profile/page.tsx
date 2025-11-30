@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 export default function FarmerProfilePage() {
   const [profile, setProfile] = useState<any | null>(null);
+  const [landDetails, setLandDetails] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -28,6 +29,25 @@ export default function FarmerProfilePage() {
       }
     }
     loadProfile();
+  }, []);
+
+  useEffect(() => {
+    async function loadLandDetails() {
+      try {
+        // Get userId from localStorage or URL
+        const userId = localStorage.getItem('userId') || new URLSearchParams(window.location.search).get('userId');
+        if (!userId) return;
+
+        const res = await fetch(`/api/farmer/land-details?userId=${userId}`);
+        const data = await res.json();
+        if (res.ok) {
+          setLandDetails(data.data || []);
+        }
+      } catch (err) {
+        console.error('Failed to load land details:', err);
+      }
+    }
+    loadLandDetails();
   }, []);
 
   return (
@@ -111,6 +131,108 @@ export default function FarmerProfilePage() {
               </div>
             )}
           </section>
+
+          {/* Mapped Land Details Section */}
+          {landDetails.length > 0 && (
+            <section className="bg-[#fffaf1] border border-[#e2d4b7] rounded-lg p-6 space-y-4">
+              <h2 className="text-sm font-semibold text-[#1f3b2c] mb-4">Mapped Land Details</h2>
+              {landDetails.map((land, index) => (
+                <div key={land._id} className="border border-[#e2d4b7] rounded-lg p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-medium text-[#1f3b2c">Land Parcel #{index + 1}</h3>
+                    <span className={`px-2 py-1 rounded-full text-[11px] ${
+                      land.processingStatus === 'completed' ? 'bg-green-100 text-green-800' : 
+                      land.processingStatus === 'pending' ? 'bg-yellow-100 text-yellow-800' : 
+                      'bg-red-100 text-red-800'
+                    }`}>
+                      {land.processingStatus === 'completed' ? '✅ Mapped' : 
+                       land.processingStatus === 'pending' ? '⏳ Pending' : 
+                       '❌ Failed'}
+                    </span>
+                  </div>
+
+                  {/* Land Sketch Image */}
+                  {land.sketchImage && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-[#1f3b2c]">Land Sketch</h4>
+                      <img 
+                        src={land.sketchImage.path} 
+                        alt="Land Sketch" 
+                        className="w-full max-w-xs h-auto border border-[#e2d4b7] rounded-lg"
+                      />
+                    </div>
+                  )}
+
+                  {/* RTC Details */}
+                  {land.rtcDetails && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <div className="text-[#1f3b2c]">
+                        <span className="font-semibold">Survey Number: </span>
+                        {land.rtcDetails.surveyNumber || '—'}
+                      </div>
+                      <div className="text-[#1f3b2c]">
+                        <span className="font-semibold">Extent: </span>
+                        {land.rtcDetails.extent ? `${land.rtcDetails.extent} acres` : '—'}
+                      </div>
+                      <div className="text-[#1f3b2c]">
+                        <span className="font-semibold">Location: </span>
+                        {land.rtcDetails.location || '—'}
+                      </div>
+                      <div className="text-[#1f3b2c]">
+                        <span className="font-semibold">Soil Type: </span>
+                        {land.rtcDetails.soilType || '—'}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Geographic Coordinates */}
+                  {land.landData && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-medium text-[#1f3b2c]">Geographic Coordinates</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[#1f3b2c]">
+                        <div>
+                          <span className="font-semibold">Centroid: </span>
+                          {land.landData.centroidLatitude?.toFixed(7)}, {land.landData.centroidLongitude?.toFixed(7)}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Total Area: </span>
+                          {land.landData.totalArea ? `${land.landData.totalArea.toFixed(2)} sq.m` : '—'}
+                        </div>
+                        <div>
+                          <span className="font-semibold">Vertices: </span>
+                          {land.landData.vertices?.length || 0} points
+                        </div>
+                        <div>
+                          <span className="font-semibold">Side Lengths: </span>
+                          {land.landData.sideLengths?.length || 0} sides
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Download GeoJSON */}
+                  {land.landData?.geojson && (
+                    <div className="pt-2">
+                      <button
+                        onClick={() => {
+                          const blob = new Blob([land.landData.geojson], { type: 'application/json' });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `land-parcel-${index + 1}.geojson`;
+                          a.click();
+                          URL.revokeObjectURL(url);
+                        }}
+                        className="inline-flex items-center rounded-md bg-[#166534] px-3 py-1 text-xs font-medium text-white hover:bg-[#14532d]"
+                      >
+                        Download GeoJSON
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
 
           <section className="bg-[#fffaf1] border border-[#e2d4b7] rounded-lg p-6 space-y-3">
             <h2 className="text-sm font-semibold text-[#1f3b2c] mb-2">Uploaded Documents</h2>

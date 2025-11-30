@@ -135,7 +135,7 @@ export async function POST(request: Request) {
       
       console.log(`Name verification: RTC="${rtcName}" vs Aadhaar="${aadhaarName}"`);
       
-      // Check if names match exactly (no partial match - only exact match allowed)
+      // Check if names match exactly (no partial matching allowed)
       if (rtcName === aadhaarName) {
         nameVerificationStatus = 'verified';
         shouldStoreRTCData = true;

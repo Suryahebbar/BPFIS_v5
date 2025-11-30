@@ -34,17 +34,108 @@ function cleanLines(text: string): string[] {
 
 // STEP 3 — Parse based strictly on positions
 function parseRTC(lines: string[]) {
-  // LOCATION (always appears together)
-  const locLine = lines.find(l => l.includes("ನಂಬರ್"));
+  console.log('RTC lines for debugging:', lines);
+  
+  // Try to find location lines with actual place names (not just "ನಂಬರ್")
+  const locationLines = lines.filter(l => 
+    l.includes('ತಾಲ್ಲೂಕು') || l.includes('ಹೋಬಳಿ') || 
+    l.includes('ಗ್ರಾಮ') || l.includes('ವಿಳಾಸ') ||
+    (l.includes('ತಾಲ್ಲೂ') && l.includes('ಕು:')) ||
+    l.includes('ಹೋಬಳಿ') || l.includes('ಗ್ರಾ')
+  );
+  
+  console.log('Found location lines:', locationLines);
+  
   let taluk = null, hobli = null, village = null, survey_number = null;
-
-  if (locLine) {
-    const t = locLine.split(" ").filter(Boolean);
-    taluk = t[0] || null;
-    hobli = t[1] || null;
-    village = t[2] || null;
-    survey_number = t.find(v => v.includes("ನಂಬರ್") || v.match(/[\d/]+\*/)) || null;
+  
+  // Try to extract from location lines first
+  if (locationLines.length > 0) {
+    const locLine = locationLines[0]; // Use first location line
+    console.log('Using location line:', locLine);
+    
+    // Simple extraction: value comes after colon
+    const parts = locLine.split(':').map(p => p.trim());
+    console.log('Colon-separated parts:', parts);
+    
+    // Extract based on position after colons
+    if (parts.length >= 2) {
+      // First part before first colon contains taluk label
+      const firstPart = parts[0]; // "ತಾಲ್ಲೂ ಕು"
+      const secondPart = parts[1]; // "ತೀರ್ಥಹಳ್ಳಿ ಹೋಬಳಿ"
+      const thirdPart = parts.length >= 3 ? parts[2] : null; // "ಮಂಡಗದ್ದೆ ಗ್ರಾ ಮ ಚಿಕ್ಸಿಕೆಂಚಿಗುಡ್ಡೆ"
+      
+      // Extract taluk from second part (word before "ಹೋಬಳಿ")
+      // because format is: ತಾಲ್ಲೂ ಕು: [TALUK_NAME] ಹೋಬಳಿ
+      const secondPartWords = secondPart.split(' ');
+      const hobliIndex = secondPartWords.findIndex(w => w.includes('ಹೋಬಳಿ'));
+      if (hobliIndex > 0) {
+        taluk = secondPartWords[hobliIndex - 1]; // "ತೀರ್ಥಹಳ್ಳಿ" (Thirthahalli)
+      }
+      
+      // Extract hobli and village from third part
+      if (thirdPart) {
+        const thirdPartWords = thirdPart.split(' ');
+        const graIndex = thirdPartWords.findIndex(w => w.includes('ಗ್ರಾ'));
+        if (graIndex > 0) {
+          // Hobli is word before "ಗ್ರಾ"
+          hobli = thirdPartWords[graIndex - 1]; // "ಮಂಡಗದ್ದೆ" (Mandagade)
+          
+          // Village is word after "ಗ್ರಾ ಮ"
+          if (graIndex + 1 < thirdPartWords.length && thirdPartWords[graIndex + 1] === 'ಮ' && graIndex + 2 < thirdPartWords.length) {
+            village = thirdPartWords[graIndex + 2]; // "ಚಿಕ್ಸಿಕೆಂಚಿಗುಡ್ಡೆ"
+          } else if (graIndex + 1 < thirdPartWords.length) {
+            village = thirdPartWords[graIndex + 1];
+          }
+        }
+      }
+      
+      // Extract survey number from the last part
+      const surveyMatch = locLine.match(/(\d+\/\S+|\d+\*\/\d+)/);
+      survey_number = surveyMatch ? surveyMatch[1] : null;
+    }
+    
+    console.log('Simple colon extraction result:', { taluk, hobli, village, survey_number });
   }
+  
+  // Fallback to original logic if no location lines found
+  if (!taluk && !hobli && !village) {
+    const locLine = lines.find(l => l.includes("ನಂಬರ್"));
+    console.log('Fallback to survey line:', locLine);
+    
+    if (locLine) {
+      const t = locLine.split(" ").filter(Boolean);
+      console.log('Location line parts:', t);
+      
+      // Try to find actual survey number (numeric)
+      const surveyNum = t.find(v => v.match(/^\d+\/\S+|\d+\*\/\d+/)) || t.find(v => v.match(/\d+/));
+      console.log('Found survey number:', surveyNum);
+      
+      // Find index of survey number to extract location parts before it
+      const surveyIndex = t.findIndex(v => v === surveyNum || v.includes(surveyNum || ''));
+      console.log('Survey index:', surveyIndex);
+      
+      if (surveyIndex > 0) {
+        // Extract location parts from before the survey number
+        const locationParts = t.slice(0, surveyIndex);
+        console.log('Location parts:', locationParts);
+        
+        // Try to identify proper location names
+        taluk = locationParts.find(p => p.includes('ತಾಲ್ಲೂ')) || locationParts[0] || null;
+        hobli = locationParts.find(p => p.includes('ಹೋಬಳಿ') || p.includes('ಕು:')) || locationParts[1] || null;
+        village = locationParts.find(p => p.includes('ಗ್ರಾ') || p.includes('ವಿಳಾಸ')) || 
+                  (locationParts.length > 2 ? locationParts.slice(2).join(' ') : null);
+        survey_number = surveyNum || null;
+      } else {
+        // Fallback to original logic
+        taluk = t[0] || null;
+        hobli = t[1] || null;
+        village = t[2] || null;
+        survey_number = t.find(v => v.includes("ನಂಬರ್") || v.match(/[\d/]+\*/)) || null;
+      }
+    }
+  }
+  
+  console.log('Extracted location:', { taluk, hobli, village, survey_number });
 
   // VALID FROM (fixed format)
   const validFromLine = lines.find(l => l.includes("Valid from"));
@@ -52,7 +143,18 @@ function parseRTC(lines: string[]) {
 
   // HISSA NUMBER
   const hissaLine = lines.find(l => l.includes("ಹಿಸ್ಸಾ"));
-  const hissa_number = survey_number?.split("/")?.pop()?.replace("*", "") || null;
+  console.log('Found hissa line:', hissaLine);
+  let hissa_number = null;
+  
+  if (survey_number && survey_number.includes("/")) {
+    hissa_number = survey_number.split("/").pop()?.replace("*", "") || null;
+  } else {
+    // Try to find hissa number separately
+    const hissaMatch = hissaLine?.match(/(\d+)/);
+    hissa_number = hissaMatch ? hissaMatch[1] : null;
+  }
+  
+  console.log('Extracted hissa number:', hissa_number);
 
   // TOTAL EXTENT
   const extentLine = lines.find(l => l.match(/\d+\.\d+\.\d+\.\d+/));
@@ -82,11 +184,71 @@ function parseRTC(lines: string[]) {
   let owners: string[] = [], ownerExtent = null, account_no = null, mutation_no = null, mutation_date = null;
 
   if (ownerLine) {
+    console.log('Raw owner line:', ownerLine);
     const t = ownerLine.split(" ").filter(Boolean);
     const extIdx = t.findIndex(v => v.match(/\d+\.\d+\.\d+\.\d+/));
     
     const ownerPart = t.slice(0, extIdx).join(" ");
-    owners = ownerPart.split(".").map(o => o.trim()).filter(Boolean);
+    console.log('Owner part before processing:', ownerPart);
+    
+    // Get the next line to check for additional name parts like "ಎಲ್"
+    const ownerLineIndex = lines.indexOf(ownerLine);
+    const nextLine = ownerLineIndex !== -1 && ownerLineIndex + 1 < lines.length 
+      ? lines[ownerLineIndex + 1] 
+      : null;
+    
+    console.log('Next line after owner:', nextLine);
+    
+    // Combine owner part with next line if it contains name parts
+    let extractedName = ownerPart;
+    if (nextLine && /[\u0C80-\u0CFF]/.test(nextLine)) {
+      // Extract name part from next line (before stop words)
+      let nextLineName = nextLine;
+      const stopWords = ["ಕೋಂ", "ಬಿನ್"];
+      
+      for (const stopWord of stopWords) {
+        const stopIndex = nextLineName.indexOf(stopWord);
+        if (stopIndex !== -1) {
+          nextLineName = nextLineName.substring(0, stopIndex);
+          console.log(`Found stop word "${stopWord}" in next line, cutting to:`, nextLineName);
+          break;
+        }
+      }
+      
+      // Extract only Kannada characters from next line
+      const kannadaPart = nextLineName
+        .match(/[\u0C80-\u0CFF\s.]+/g)?.[0] || nextLineName;
+      
+      // Combine the names
+      extractedName = (ownerPart + ' ' + kannadaPart).trim();
+      console.log('Combined name from owner + next line:', extractedName);
+    }
+    
+    // Now apply stop words to the combined name
+    const stopWords = ["ಕೋಂ", "ಬಿನ್"];
+    for (const stopWord of stopWords) {
+      const stopIndex = extractedName.indexOf(stopWord);
+      if (stopIndex !== -1) {
+        extractedName = extractedName.substring(0, stopIndex);
+        console.log(`Found stop word "${stopWord}" in combined name, cutting to:`, extractedName);
+        break;
+      }
+    }
+    
+    // Remove punctuation marks and clean up the name
+    extractedName = extractedName
+      .replace(/[.,]/g, '') // Remove dots and commas
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .trim();
+    
+    console.log('Final extracted name:', extractedName);
+    
+    // Take only the first owner name (before any separators like -)
+    const firstOwner = extractedName.split(/[-,]/)[0].trim();
+    console.log('First owner name:', firstOwner);
+    
+    // Store the cleaned name as a single-element array
+    owners = firstOwner.length > 0 ? [firstOwner] : [];
     
     ownerExtent = t[extIdx];
     account_no = t[extIdx + 1] || null;
@@ -251,11 +413,45 @@ function parseAadhaar(text: string) {
   // -------------------------
   // Gender
   // -------------------------
-  const gender = /MALE/i.test(text)
-    ? "MALE"
-    : /FEMALE/i.test(text)
-    ? "FEMALE"
-    : null;
+  console.log('Aadhaar text for gender extraction:', text);
+  
+  let gender = null;
+  
+  // Try multiple patterns for gender extraction
+  const genderPatterns = [
+    /(?:Gender|GEN|G)[:\s]*(Male|Female|MALE|FEMALE)/i,
+    /(?:Male|Female|MALE|FEMALE)(?:\s*[:\-])?/i,
+    /\b(Male|Female|MALE|FEMALE)\b/i,
+    /ಪುರುಷ|ಸ್ತ್ರೀ|ಮಹಿಳಾ/i // Kannada gender words
+  ];
+  
+  for (const pattern of genderPatterns) {
+    const match = text.match(pattern);
+    if (match) {
+      let genderValue = match[1];
+      if (genderValue) {
+        gender = genderValue.toUpperCase();
+      } else {
+        // Handle Kannada gender words
+        const kannadaGender = match[0];
+        if (kannadaGender.includes('ಪುರುಷ')) gender = 'MALE';
+        else if (kannadaGender.includes('ಸ್ತ್ರೀ') || kannadaGender.includes('ಮಹಿಳಾ')) gender = 'FEMALE';
+      }
+      console.log(`Gender pattern matched: ${pattern}, result: ${gender}`);
+      break;
+    }
+  }
+  
+  // Fallback to simple check
+  if (!gender) {
+    gender = /MALE|ಪುರುಷ/i.test(text)
+      ? "MALE"
+      : /FEMALE|ಸ್ತ್ರೀ|ಮಹಿಳಾ/i.test(text)
+      ? "FEMALE"
+      : null;
+  }
+  
+  console.log('Final gender extraction result:', gender);
 
   // -------------------------
   // English Address
