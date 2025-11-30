@@ -13,7 +13,15 @@ export async function POST(request: Request) {
     const body = await request.json();
     const { companyName, businessEmail, upiId, password } = body;
 
+    console.log('📝 Supplier Registration Request:', {
+      companyName,
+      businessEmail,
+      upiId,
+      hasPassword: !!password
+    });
+
     if (!companyName || !businessEmail || !upiId || !password) {
+      console.log('❌ Missing required fields:', { companyName, businessEmail, upiId, hasPassword: !!password });
       return NextResponse.json(
         { message: 'Missing required fields' },
         { status: 400 }
@@ -24,6 +32,7 @@ export async function POST(request: Request) {
 
     const existing = await User.findOne({ email: businessEmail });
     if (existing) {
+      console.log('❌ Email already registered:', businessEmail);
       return NextResponse.json(
         { message: 'Email already registered' },
         { status: 400 }
@@ -33,6 +42,9 @@ export async function POST(request: Request) {
     const passwordHash = await bcrypt.hash(password, 10);
     const emailOtp = generateOtp();
     const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    console.log('🔢 Generated OTP:', emailOtp);
+    console.log('⏰ OTP Expires at:', otpExpiresAt);
 
     const user = await User.create({
       role: 'supplier',
@@ -47,11 +59,23 @@ export async function POST(request: Request) {
       otpExpiresAt,
     });
 
+    console.log('✅ User created successfully:', {
+      id: user._id,
+      email: user.email,
+      companyName: user.companyName,
+      role: user.role
+    });
+
     void sendEmailOtp(user.email, emailOtp, 'supplier registration');
+
+    console.log('📧 OTP sent to email:', user.email);
 
     return NextResponse.json({
       message: 'Supplier registered. Verify OTP to activate account.',
       userId: user._id,
+      otp: emailOtp, // Include OTP for development testing
+      email: businessEmail,
+      companyName: companyName
     });
   } catch (error) {
     console.error('register-supplier error', error);
