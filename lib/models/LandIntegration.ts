@@ -47,6 +47,15 @@ export interface ILandIntegration extends Document {
     };
   };
   agreementDocument?: string; // path to generated agreement PDF
+  signatures?: Array<{
+    userId: string;
+    userName: string;
+    signatureHash: string;
+    signedAt: Date;
+    ipAddress: string;
+    userAgent: string;
+  }>;
+  executionDate?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -100,7 +109,16 @@ const LandIntegrationSchema = new Schema<ILandIntegration>({
       targetUser: { type: Number, required: true }
     }
   },
-  agreementDocument: { type: String }
+  agreementDocument: { type: String },
+  signatures: [{
+    userId: { type: String, required: true },
+    userName: { type: String, required: true },
+    signatureHash: { type: String, required: true },
+    signedAt: { type: Date, required: true },
+    ipAddress: { type: String, required: true },
+    userAgent: { type: String, required: true }
+  }],
+  executionDate: { type: Date }
 }, {
   timestamps: true
 });

@@ -89,7 +89,10 @@ export default function FarmerOverviewPage() {
             </div>
           </a>
 
-          <button className="group bg-white rounded-xl p-6 shadow-lg border border-[#e5e7eb] hover:shadow-xl hover:border-[#1e40af] transition-all text-left">
+          <a
+            href="http://localhost:3001/dashboard/farmer/crop-price-prediction?userId=692b0ee45fc507209a9dc6f1"
+            className="group bg-white rounded-xl p-6 shadow-lg border border-[#e5e7eb] hover:shadow-xl hover:border-[#1e40af] transition-all text-left"
+          >
             <div className="flex items-start gap-4">
               <div className="bg-gradient-to-br from-[#1e40af] to-[#1e3a8a] rounded-lg p-3 group-hover:scale-110 transition-transform">
                 <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -106,7 +109,7 @@ export default function FarmerOverviewPage() {
                 </span>
               </div>
             </div>
-          </button>
+          </a>
         </div>
 
         {/* Recent Activity & Tips */}
@@ -152,13 +155,11 @@ export default function FarmerOverviewPage() {
             </h3>
             <div className="space-y-3">
               <div className="flex items-start gap-3">
-                <span className="text-2xl">🌱</span>
                 <p className="text-sm text-[#92400e]">
                   Consider diversifying crops this season to reduce risk and maximize returns.
                 </p>
               </div>
               <div className="flex items-start gap-3">
-                <span className="text-2xl">💰</span>
                 <p className="text-sm text-[#92400e]">
                   Wheat prices are predicted to rise by 8% next month. Good time to harvest!
                 </p>

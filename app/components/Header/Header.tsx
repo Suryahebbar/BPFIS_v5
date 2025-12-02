@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { ShoppingCart, User, LogOut, Link2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
 
 export default function Header() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const [farmerName, setFarmerName] = useState<string>('');
 
   const isDashboard = pathname?.startsWith('/dashboard');
   const isFarmer = pathname?.startsWith('/dashboard/farmer');
@@ -21,12 +23,32 @@ export default function Header() {
     return url.pathname + '?' + url.searchParams.toString();
   };
 
+  // Fetch farmer profile data to get the name
+  useEffect(() => {
+    if (isFarmer && userId) {
+      fetchFarmerProfile();
+    }
+  }, [isFarmer, userId]);
+
+  const fetchFarmerProfile = async () => {
+    try {
+      const response = await fetch(`/api/farmer/profile?userId=${userId}`);
+      if (response.ok) {
+        const data = await response.json();
+        const name = data.profile?.verifiedName || data.profile?.aadhaarKannadaName || data.profile?.name || 'Farmer';
+        setFarmerName(name);
+      }
+    } catch (error) {
+      console.error('Failed to fetch farmer profile:', error);
+    }
+  };
+
   const handleLogout = () => {
     router.push('/');
   };
 
   return (
-    <header className="bg-white/90 backdrop-blur-md z-40 border-b border-[#e5e7eb] shadow-sm rounded-lg mx-4 mt-4">
+    <header className="bg-[#f7f0de] z-40">
       <div className="px-6">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -86,10 +108,15 @@ export default function Header() {
               {isFarmer && (
                 <Link
                   href={buildDashboardHref('/dashboard/farmer/profile')}
-                  className="flex items-center gap-2 text-[#374151] hover:text-[#166534] hover:bg-[#f0fdf4] px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                  className="flex flex-col items-start text-[#374151] hover:text-[#166534] hover:bg-[#f0fdf4] px-4 py-2 rounded-lg text-sm font-medium transition-all"
                 >
-                  <User className="h-4 w-4" />
-                  My Profile
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    My Profile
+                  </div>
+                  {farmerName && (
+                    <span className="text-xs text-[#6b7280] mt-1">{farmerName}</span>
+                  )}
                 </Link>
               )}
 

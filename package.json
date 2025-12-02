@@ -11,7 +11,9 @@
   "dependencies": {
     "@types/uuid": "^10.0.0",
     "bcryptjs": "^3.0.3",
+    "html2canvas": "^1.4.1",
     "jose": "^5.10.0",
+    "jspdf": "^3.0.4",
     "lucide-react": "^0.555.0",
     "mongoose": "^9.0.0",
     "multer": "^2.0.2",

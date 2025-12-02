@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import AgreementModal from '../../../../components/AgreementModal/AgreementModal';
 
 interface LandDetails {
   _id: string;
@@ -58,6 +59,7 @@ export default function LandIntegrationPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [selectedAgreementRequest, setSelectedAgreementRequest] = useState<string | null>(null);
 
   // Load user's land details and integration status
   useEffect(() => {
@@ -357,31 +359,85 @@ export default function LandIntegrationPage() {
             {integrationRequests.map((request) => (
               <div key={request._id} className="border border-[#e2d4b7] rounded-lg p-4">
                 <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium text-[#1f3b2c]">
-                      Integration Request from {request.otherUserName}
-                    </h3>
-                    <p className="text-xs text-[#6b7280] mt-1">
-                      Total Integrated Size: {request.landDetails.totalIntegratedSize.toFixed(2)} acres
-                    </p>
-                    <p className="text-xs text-[#6b7280]">
-                      Your Contribution: {request.landDetails.targetUser.contributionRatio.toFixed(1)}% 
-                      ({request.landDetails.targetUser.sizeInAcres.toFixed(2)} acres)
-                    </p>
+                  <div className="flex-1">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-medium text-[#1f3b2c]">
+                        {request.isRequestingUser ? 'Request sent to' : 'Request received from'} {request.otherUserName}
+                      </h3>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        request.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                        request.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                        request.status === 'rejected' ? 'bg-red-100 text-red-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {request.status === 'pending' ? '⏳ Pending' :
+                         request.status === 'accepted' ? '✅ Accepted' :
+                         request.status === 'rejected' ? '❌ Rejected' :
+                         request.status}
+                      </span>
+                    </div>
+                    
+                    <div className="space-y-1">
+                      <p className="text-xs text-[#6b7280]">
+                        Total Integrated Size: {request.landDetails.totalIntegratedSize.toFixed(2)} acres
+                      </p>
+                      <p className="text-xs text-[#6b7280]">
+                        Your Land: {request.isRequestingUser ? 
+                          request.landDetails.requestingUser.sizeInAcres.toFixed(2) : 
+                          request.landDetails.targetUser.sizeInAcres.toFixed(2)} acres 
+                        ({request.isRequestingUser ? 
+                          request.landDetails.requestingUser.contributionRatio.toFixed(1) : 
+                          request.landDetails.targetUser.contributionRatio.toFixed(1)}%)
+                      </p>
+                      <p className="text-xs text-[#6b7280]">
+                        {request.otherUserName}'s Land: {request.isRequestingUser ? 
+                          request.landDetails.targetUser.sizeInAcres.toFixed(2) : 
+                          request.landDetails.requestingUser.sizeInAcres.toFixed(2)} acres 
+                        ({request.isRequestingUser ? 
+                          request.landDetails.targetUser.contributionRatio.toFixed(1) : 
+                          request.landDetails.requestingUser.contributionRatio.toFixed(1)}%)
+                      </p>
+                      {request.otherUserContact && (
+                        <p className="text-xs text-[#6b7280]">
+                          Contact: {request.otherUserContact}
+                        </p>
+                      )}
+                      <p className="text-xs text-[#6b7280]">
+                        Request Date: {new Date(request.requestDate).toLocaleDateString()}
+                      </p>
+                      {request.responseDate && (
+                        <p className="text-xs text-[#6b7280]">
+                          Response Date: {new Date(request.responseDate).toLocaleDateString()}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex space-x-2">
-                    <button
-                      onClick={() => respondToRequest(request._id, 'accept')}
-                      className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
-                    >
-                      Accept
-                    </button>
-                    <button
-                      onClick={() => respondToRequest(request._id, 'reject')}
-                      className="inline-flex items-center rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
-                    >
-                      Reject
-                    </button>
+                  
+                  <div className="flex space-x-2 ml-4">
+                    {request.status === 'pending' && !request.isRequestingUser && (
+                      <>
+                        <button
+                          onClick={() => respondToRequest(request._id, 'accept')}
+                          className="inline-flex items-center rounded-md bg-green-600 px-3 py-1 text-xs font-medium text-white hover:bg-green-700"
+                        >
+                          Accept
+                        </button>
+                        <button
+                          onClick={() => respondToRequest(request._id, 'reject')}
+                          className="inline-flex items-center rounded-md bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+                        >
+                          Reject
+                        </button>
+                      </>
+                    )}
+                    {request.status === 'accepted' && request.agreementDocument && (
+                      <button
+                        onClick={() => setSelectedAgreementRequest(request._id)}
+                        className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                      >
+                        View Agreement
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -419,12 +475,6 @@ export default function LandIntegrationPage() {
                     >
                       Request Integration
                     </button>
-                    <button
-                      onClick={() => console.log('Test button clicked for neighbour:', neighbour.userName)}
-                      className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
-                    >
-                      Test
-                    </button>
                   </div>
                 </div>
               </div>
@@ -439,6 +489,16 @@ export default function LandIntegrationPage() {
             Mark yourself as "Ready to Integrate" to find neighbouring farmers who want to integrate their lands.
           </p>
         </div>
+      )}
+
+      {/* Agreement Modal */}
+      {selectedAgreementRequest && (
+        <AgreementModal
+          isOpen={!!selectedAgreementRequest}
+          onClose={() => setSelectedAgreementRequest(null)}
+          requestId={selectedAgreementRequest}
+          requestStatus={integrationRequests.find(r => r._id === selectedAgreementRequest)?.status || ''}
+        />
       )}
     </div>
   );

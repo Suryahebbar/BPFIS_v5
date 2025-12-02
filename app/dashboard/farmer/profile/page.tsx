@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import AgreementPreviewModal from '../../../components/AgreementPreviewModal/AgreementPreviewModal';
 
 export default function FarmerProfilePage() {
   const [profile, setProfile] = useState<any | null>(null);
   const [landDetails, setLandDetails] = useState<any | null>(null);
+  const [completedAgreements, setCompletedAgreements] = useState<any[]>([]);
+  const [selectedAgreementPreview, setSelectedAgreementPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
@@ -63,6 +66,21 @@ export default function FarmerProfilePage() {
       }
     }
     loadLandDetails();
+  }, []);
+
+  useEffect(() => {
+    async function loadCompletedAgreements() {
+      try {
+        const res = await fetch('/api/farmer/land-integration/completed-agreements');
+        const data = await res.json();
+        if (res.ok) {
+          setCompletedAgreements(data.agreements || []);
+        }
+      } catch (err) {
+        console.error('Failed to load completed agreements:', err);
+      }
+    }
+    loadCompletedAgreements();
   }, []);
 
   return (
@@ -283,6 +301,56 @@ export default function FarmerProfilePage() {
             )}
           </section>
 
+          {/* Completed Agreements Section */}
+          {completedAgreements.length > 0 && (
+            <section className="bg-[#fffaf1] border border-[#e2d4b7] rounded-lg p-6 space-y-3">
+              <h2 className="text-sm font-semibold text-[#1f3b2c] mb-2">Land Integration Agreements</h2>
+              <div className="space-y-3">
+                {completedAgreements.map((agreement) => (
+                  <div key={agreement.agreementId} className="border border-[#e2d4b7] rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex-1">
+                        <h3 className="font-medium text-[#1f3b2c]">Agreement with {agreement.otherUserName}</h3>
+                        <p className="text-xs text-[#6b7280] mt-1">
+                          Total Land: {agreement.totalLandSize.toFixed(2)} acres | 
+                          Your Land: {agreement.yourLandSize.toFixed(2)} acres ({agreement.yourContribution.toFixed(1)}%)
+                        </p>
+                        <p className="text-xs text-[#6b7280]">
+                          Executed on: {new Date(agreement.executionDate).toLocaleDateString()}
+                        </p>
+                        {agreement.otherUserContact && (
+                          <p className="text-xs text-[#6b7280]">Contact: {agreement.otherUserContact}</p>
+                        )}
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setSelectedAgreementPreview(agreement.agreementId)}
+                          className="bg-green-600 text-white px-3 py-1 rounded text-xs hover:bg-green-700 transition-colors"
+                        >
+                          Preview
+                        </button>
+                        <button
+                          onClick={() => window.open(`/api/farmer/land-integration/download-agreement?requestId=${agreement.agreementId}`, '_blank')}
+                          className="bg-blue-600 text-white px-3 py-1 rounded text-xs hover:bg-blue-700 transition-colors"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    </div>
+                    <div className="text-xs text-[#6b7280]">
+                      <span className="font-medium">Signatures:</span>
+                      {agreement.signatures.map((sig: any, index: number) => (
+                        <span key={index} className="ml-2">
+                          {sig.userName} ({new Date(sig.signedAt).toLocaleDateString()})
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
           <section className="bg-[#fffaf1] border border-[#e2d4b7] rounded-lg p-6 space-y-3">
             <h2 className="text-sm font-semibold text-[#1f3b2c] mb-2">Uploaded Documents</h2>
             <div className="flex flex-col gap-2">
@@ -301,6 +369,15 @@ export default function FarmerProfilePage() {
             </div>
           </section>
         </>
+      )}
+
+      {/* Agreement Preview Modal */}
+      {selectedAgreementPreview && (
+        <AgreementPreviewModal
+          isOpen={!!selectedAgreementPreview}
+          onClose={() => setSelectedAgreementPreview(null)}
+          agreementId={selectedAgreementPreview}
+        />
       )}
     </div>
   );

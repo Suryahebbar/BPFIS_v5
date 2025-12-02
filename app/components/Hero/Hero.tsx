@@ -10,7 +10,6 @@ export default function Hero() {
     'https://images.unsplash.com/photo-1475084124271-aebaf8a67166?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     'https://images.unsplash.com/photo-1455106429120-62f655f62f83?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     'https://images.unsplash.com/photo-1529511582893-2d7e684dd128?q=80&w=1933&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
-    'https://plus.unsplash.com/premium_photo-1726313836390-8b1e86742c98?q=80&w=2070&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     'https://images.unsplash.com/photo-1658900283889-798f1cf0ea0b?q=80&w=2072&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D',
     'https://images.unsplash.com/photo-1615129825073-c47c67bdec5b?q=80&w=1994&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D'
   ];
@@ -24,7 +23,7 @@ export default function Hero() {
   }, [images.length]);
 
   return (
-    <section className="relative pt-80 pb-64 md:pt-96 md:pb-96 overflow-hidden">
+    <section className="relative pt-60 pb-80 md:pt-90 md:pb-96 overflow-hidden">
       {/* Background images with crossfade */}
       <div className="absolute inset-0 -z-10">
         {images.map((image, index) => (
@@ -33,12 +32,11 @@ export default function Hero() {
             className="absolute inset-0 w-full h-full bg-cover bg-center bg-no-repeat transition-opacity duration-1000"
             style={{
               backgroundImage: `url('${image}')`,
-              filter: 'blur(0px)',
+              filter: 'blur(2px)',
               opacity: currentImageIndex === index ? 1 : 0
             }}
           />
         ))}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/50 to-black/70" />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
