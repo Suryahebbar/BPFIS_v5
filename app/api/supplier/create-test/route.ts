@@ -58,7 +58,7 @@ export async function POST() {
     console.error('❌ Error creating test seller:', error);
     return NextResponse.json({
       success: false,
-      error: error.message || 'Failed to create test seller'
+      error: error instanceof Error ? error.message : 'Failed to create test seller'
     }, { status: 500 });
   }
 }

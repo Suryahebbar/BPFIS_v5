@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import Header from '../components/Header/Header';
+import HeaderWrapper from '../components/Header/HeaderWrapper';
 import Footer from '../components/Footer/Footer';
 
 export default function RegisterPage() {
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f0de]">
-      <Header />
+      <HeaderWrapper />
       <main className="flex-grow pt-24 pb-16">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">

@@ -91,13 +91,13 @@ export async function POST(request: Request) {
     await order.save();
 
     // Group items by seller for potential seller notifications
-    const itemsBySeller = orderItems.reduce((acc, item) => {
+    const itemsBySeller = orderItems.reduce((acc: Record<string, any[]>, item) => {
       if (!acc[item.sellerId]) {
         acc[item.sellerId] = [];
       }
       acc[item.sellerId].push(item);
       return acc;
-    }, {});
+    }, {} as Record<string, any[]>);
 
     // TODO: Send notifications to sellers about new orders
     // This could be implemented with email/SMS notifications

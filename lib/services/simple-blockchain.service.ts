@@ -95,9 +95,7 @@ class SimpleBlockchainService {
       }
 
       // Try to connect to Hardhat node
-      this.provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545', {
-        staticNetwork: true // Prevents network detection retries
-      });
+      this.provider = new ethers.JsonRpcProvider('http://127.0.0.1:8545');
       
       await this.provider.getBlockNumber(); // Test connection
       

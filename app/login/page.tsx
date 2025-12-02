@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import Header from '../components/Header/Header';
+import HeaderWrapper from '../components/Header/HeaderWrapper';
 import Footer from '../components/Footer/Footer';
 
 export default function LoginPage() {
@@ -51,7 +51,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-[#f7f0de]">
-      <Header />
+      <HeaderWrapper />
       <main className="flex-grow flex items-center justify-center px-4 py-16">
         <div className="w-full max-w-md bg-[#fffaf1] border border-[#e2d4b7] rounded-lg shadow-md px-8 py-10">
           <h1 className="text-2xl font-semibold text-center text-[#1f3b2c] mb-2">Welcome Back</h1>

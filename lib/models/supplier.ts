@@ -5,6 +5,7 @@ export interface ISeller extends Document {
   companyName: string;
   email: string;
   phone: string;
+  passwordHash: string;
   address: {
     street: string;
     city: string;
@@ -32,6 +33,7 @@ const SellerSchema = new Schema<ISeller>({
   companyName: { type: String, required: true },
   email: { type: String, required: true, unique: true },
   phone: { type: String, required: true },
+  passwordHash: { type: String, required: true },
   address: {
     street: { type: String, required: true },
     city: { type: String, required: true },
@@ -351,9 +353,9 @@ DailyAnalyticsSchema.index({ sellerId: 1, date: -1 });
 DailyAnalyticsSchema.index({ date: -1 });
 
 // Export models
-export const Seller = model<ISeller>('Seller', SellerSchema);
-export const Product = model<IProduct>('Product', ProductSchema);
-export const InventoryLog = model<IInventoryLog>('InventoryLog', InventoryLogSchema);
-export const Order = model<IOrder>('Order', OrderSchema);
-export const Review = model<IReview>('Review', ReviewSchema);
-export const DailyAnalytics = model<IDailyAnalytics>('DailyAnalytics', DailyAnalyticsSchema);
+export const Seller = model<ISeller>('Supplier', SellerSchema);
+export const Product = model<IProduct>('SupplierProduct', ProductSchema);
+export const InventoryLog = model<IInventoryLog>('SupplierInventoryLog', InventoryLogSchema);
+export const Order = model<IOrder>('SupplierOrder', OrderSchema);
+export const Review = model<IReview>('SupplierReview', ReviewSchema);
+export const DailyAnalytics = model<IDailyAnalytics>('SupplierDailyAnalytics', DailyAnalyticsSchema);

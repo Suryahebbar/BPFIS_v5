@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
-      .trim('-');
+      .replace(/^[-]+|[-]+$/g, '');
 
     // Create simple product object (without saving to database for now)
     const product: SimpleProduct = {
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
     console.error('❌ Error creating simple product:', error);
     return NextResponse.json({ 
       error: 'Internal server error',
-      details: error.message 
+      details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
 }

@@ -292,7 +292,7 @@ OrderSchema.index({ 'paymentDetails.status': 1 });
 OrderSchema.index({ 'shippingDetails.status': 1 });
 
 // Pre-save middleware
-OrderSchema.pre('save', function(next) {
+OrderSchema.pre('save', function(next: any) {
   this.updatedAt = new Date();
   
   // Auto-generate order number if not provided

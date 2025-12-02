@@ -3,11 +3,11 @@ import { Order } from '@/lib/models/order';
 import { connectDB } from '@/lib/db';
 
 export async function PUT(
-  request: Request,
-  { params }: { params: { orderId: string } }
+  request: NextRequest,
+  context: { params: Promise<{ orderId: string }> }
 ) {
   try {
-    const { orderId } = params;
+    const { orderId } = await context.params;
     const sellerId = request.headers.get('x-seller-id');
     
     if (!sellerId) {

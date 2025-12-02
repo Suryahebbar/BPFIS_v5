@@ -1,14 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { Product, InventoryLog } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
-import { ObjectId } from 'mongodb';
+import { Types } from 'mongoose';
 
 // GET /api/supplier/products/[productId] - Get single product
 export async function GET(
-  request: Request,
-  { params }: { params: { productId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ productId: string }> }
 ) {
   try {
+    const { productId } = await params;
     await connectDB();
     
     // Get seller ID from session/auth
@@ -18,8 +19,8 @@ export async function GET(
     }
 
     const product = await Product.findOne({
-      _id: new ObjectId(params.productId),
-      sellerId: new ObjectId(sellerId)
+      _id: productId as any,
+      sellerId: sellerId as any
     });
 
     if (!product) {
@@ -35,10 +36,11 @@ export async function GET(
 
 // PUT /api/supplier/products/[productId] - Update product
 export async function PUT(
-  request: Request,
-  { params }: { params: { productId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ productId: string }> }
 ) {
   try {
+    const { productId } = await params;
     await connectDB();
     
     // Get seller ID from session/auth
@@ -52,8 +54,8 @@ export async function PUT(
 
     // Find current product to track stock changes
     const currentProduct = await Product.findOne({
-      _id: new ObjectId(params.productId),
-      sellerId: new ObjectId(sellerId)
+      _id: productId as any,
+      sellerId: sellerId as any
     });
 
     if (!currentProduct) {
@@ -68,8 +70,8 @@ export async function PUT(
       // Create inventory log
       const change = newStock - oldStock;
       await new InventoryLog({
-        productId: new ObjectId(params.productId),
-        sellerId: new ObjectId(sellerId),
+        productId: productId as any,
+        sellerId: sellerId as any,
         change,
         reason: 'manual',
         previousStock: oldStock,
@@ -92,7 +94,7 @@ export async function PUT(
     if (status) updateData.status = status;
 
     const product = await Product.findByIdAndUpdate(
-      params.productId,
+      productId as any,
       updateData,
       { new: true, runValidators: true }
     );
@@ -109,10 +111,11 @@ export async function PUT(
 
 // DELETE /api/supplier/products/[productId] - Delete product
 export async function DELETE(
-  request: Request,
-  { params }: { params: { productId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ productId: string }> }
 ) {
   try {
+    const { productId } = await params;
     await connectDB();
     
     // Get seller ID from session/auth
@@ -122,8 +125,8 @@ export async function DELETE(
     }
 
     const product = await Product.findOneAndDelete({
-      _id: new ObjectId(params.productId),
-      sellerId: new ObjectId(sellerId)
+      _id: productId as any,
+      sellerId: sellerId as any
     });
 
     if (!product) {
@@ -141,10 +144,11 @@ export async function DELETE(
 
 // POST /api/supplier/products/[productId]/toggle-active - Toggle product status
 export async function POST(
-  request: Request,
-  { params }: { params: { productId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ productId: string }> }
 ) {
   try {
+    const { productId } = await params;
     await connectDB();
     
     // Get seller ID from session/auth
@@ -154,8 +158,8 @@ export async function POST(
     }
 
     const product = await Product.findOne({
-      _id: new ObjectId(params.productId),
-      sellerId: new ObjectId(sellerId)
+      _id: productId as any,
+      sellerId: sellerId as any
     });
 
     if (!product) {
@@ -166,7 +170,7 @@ export async function POST(
     const newStatus = product.status === 'active' ? 'inactive' : 'active';
     
     const updatedProduct = await Product.findByIdAndUpdate(
-      params.productId,
+      productId as any,
       { status: newStatus },
       { new: true }
     );

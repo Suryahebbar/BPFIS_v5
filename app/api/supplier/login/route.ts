@@ -44,7 +44,7 @@ export async function POST(request: Request) {
     }
 
     // Verify password
-    const isPasswordValid = await bcrypt.compare(password, seller.password);
+    const isPasswordValid = await bcrypt.compare(password, seller.passwordHash);
     if (!isPasswordValid) {
       console.log('❌ Invalid password');
       return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 });
@@ -58,10 +58,7 @@ export async function POST(request: Request) {
     });
 
     // Remove sensitive data from response
-    const sellerResponse = seller.toObject();
-    delete sellerResponse.password;
-    delete sellerResponse.otp;
-    delete sellerResponse.otpExpiry;
+    const { passwordHash, otp, otpExpiry, ...sellerResponse } = seller.toObject();
 
     return NextResponse.json({ 
       message: 'Login successful',

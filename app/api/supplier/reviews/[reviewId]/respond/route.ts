@@ -3,11 +3,11 @@ import { Review } from '@/lib/models/review';
 import { connectDB } from '@/lib/db';
 
 export async function POST(
-  request: Request,
-  { params }: { params: { reviewId: string } }
+  request: NextRequest,
+  { params }: { params: Promise<{ reviewId: string }> }
 ) {
   try {
-    const { reviewId } = params;
+    const { reviewId } = await params;
     const sellerId = request.headers.get('x-seller-id');
     
     if (!sellerId) {

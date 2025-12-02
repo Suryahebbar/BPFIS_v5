@@ -68,14 +68,12 @@ export async function POST(request: Request) {
     });
 
     // Remove sensitive data from response
-    const sellerResponse = seller.toObject();
-    delete sellerResponse.password;
-    delete sellerResponse.otp;
+    const { passwordHash, otp: sellerOtp, ...sellerResponse } = seller.toObject();
 
     return NextResponse.json({ 
       message: 'Supplier registration successful. Please check your email for OTP verification.',
       seller: sellerResponse,
-      otp // Include OTP in development only
+      otp: sellerOtp // Include OTP in development only
     }, { status: 201 });
   } catch (error) {
     console.error('❌ Error creating supplier:', error);

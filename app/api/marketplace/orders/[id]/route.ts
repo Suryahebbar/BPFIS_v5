@@ -3,7 +3,7 @@ import { MarketplaceOrder } from '@/lib/models/marketplace-order';
 import { connectDB } from '@/lib/db';
 
 export async function GET(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -42,7 +42,7 @@ export async function GET(
 }
 
 export async function PUT(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {

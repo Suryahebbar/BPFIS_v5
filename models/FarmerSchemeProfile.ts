@@ -106,9 +106,9 @@ FarmerSchemeProfileSchema.index({ userId: 1, isDefault: 1 });
 FarmerSchemeProfileSchema.index({ createdAt: -1 });
 
 // Ensure only one default profile per user
-FarmerSchemeProfileSchema.pre('save', async function(next) {
+FarmerSchemeProfileSchema.pre('save', async function(next: any) {
   if (this.isDefault && this.isModified('isDefault')) {
-    await this.constructor.updateMany(
+    await (this.constructor as any).updateMany(
       { userId: this.userId, _id: { $ne: this._id } },
       { isDefault: false }
     );

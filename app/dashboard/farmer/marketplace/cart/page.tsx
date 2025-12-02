@@ -190,20 +190,25 @@ export default function FarmerMarketplaceCart() {
                             </p>
                             <div className="flex items-center mt-2">
                               <span className="text-yellow-400 text-sm">⭐</span>
-                              <span className="text-sm text-[#6b7280] ml-1">{item.product.rating}</span>
-                              <span className="text-sm text-[#6b7280] ml-1">({item.product.reviewCount})</span>
+                              <span className="text-sm text-[#6b7280] ml-1">{(item.product as any).rating || 0}</span>
+                              <span className="text-sm text-[#6b7280] ml-1">({(item.product as any).reviewCount || 0})</span>
                             </div>
                             
                             {/* Stock Status */}
                             <div className="mt-2">
                               <span className={`text-xs px-2 py-1 rounded ${
-                                item.product.stock > 5 
+                                (item.product as any).stockQuantity > 5 
                                   ? 'bg-green-100 text-green-800' 
-                                  : item.product.stock > 0 
+                                  : (item.product as any).stockQuantity > 0 
                                     ? 'bg-yellow-100 text-yellow-800'
                                     : 'bg-red-100 text-red-800'
                               }`}>
-                                {item.product.stock > 0 ? `${item.product.stock} in stock` : 'Out of stock'}
+                                {(item.product as any).stockQuantity > 5 
+                                  ? 'In Stock' 
+                                  : (item.product as any).stockQuantity > 0 
+                                    ? `Only ${(item.product as any).stockQuantity} left`
+                                    : 'Out of Stock'
+                                }
                               </span>
                             </div>
                           </div>
@@ -237,17 +242,17 @@ export default function FarmerMarketplaceCart() {
                                 onChange={(e) => updateQuantity(item.product._id, parseInt(e.target.value))}
                                 className="w-16 text-center border-x border-[#e2d4b7] py-1"
                                 min="1"
-                                max={item.product.stock}
+                                max={(item.product as any).stockQuantity || 99}
                               />
                               <button
                                 onClick={() => updateQuantity(item.product._id, item.quantity + 1)}
-                                disabled={item.quantity >= item.product.stock}
+                                disabled={item.quantity >= (item.product as any).stockQuantity}
                                 className="px-2 py-1 text-[#1f3b2c] hover:bg-gray-100 disabled:opacity-50"
                               >
                                 +
                               </button>
                             </div>
-                            {item.quantity >= item.product.stock && (
+                            {item.quantity >= (item.product as any).stockQuantity && (
                               <span className="text-xs text-red-600">Max quantity reached</span>
                             )}
                           </div>

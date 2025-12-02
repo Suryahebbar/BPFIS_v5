@@ -1,4 +1,4 @@
-import Header from './components/Header/Header';
+import HeaderWrapper from './components/Header/HeaderWrapper';
 import Hero from './components/Hero/Hero';
 import Features from './components/Features/Features';
 import HowItWorks from './components/HowItWorks/HowItWorks';
@@ -8,7 +8,7 @@ import Footer from './components/Footer/Footer';
 export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
-      <Header />
+      <HeaderWrapper />
       <main className="flex-grow">
         <Hero />
         <Features />

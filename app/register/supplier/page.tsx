@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Header from '../../components/Header/Header';
+import HeaderWrapper from '../../components/Header/HeaderWrapper';
 import Footer from '../../components/Footer/Footer';
 
 export default function RegisterSupplierPage() {
@@ -77,7 +77,7 @@ export default function RegisterSupplierPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
-      <Header />
+      <HeaderWrapper />
       
       <main className="flex-grow bg-[#fffaf1]">
         <div className="max-w-2xl mx-auto py-12 px-4 sm:px-6 lg:px-8">

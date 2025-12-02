@@ -226,7 +226,7 @@ InventorySchema.index({ sellerId: 1, qualityStatus: 1 });
 InventorySchema.index({ expiryDate: 1 });
 
 // Pre-save middleware
-InventorySchema.pre('save', function(next) {
+InventorySchema.pre('save', function(next: any) {
   this.updatedAt = new Date();
   
   // Calculate available stock

@@ -218,7 +218,7 @@ ProductSchema.index({
 });
 
 // Pre-save middleware
-ProductSchema.pre('save', function(next) {
+ProductSchema.pre('save', function(next: any) {
   this.updatedAt = new Date();
   
   // Auto-generate slug if not provided
@@ -228,7 +228,7 @@ ProductSchema.pre('save', function(next) {
       .replace(/[^a-z0-9\s-]/g, '')
       .replace(/\s+/g, '-')
       .replace(/-+/g, '-')
-      .trim('-');
+      .replace(/^[-]+|[-]+$/g, '');
   }
   
   next();

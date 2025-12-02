@@ -92,11 +92,11 @@ export async function GET(request: NextRequest) {
     const lastMonthRevenueTotal = lastMonthRevenue[0]?.total || 0;
     const revenueGrowth = lastMonthRevenueTotal > 0 
       ? ((totalRevenue - lastMonthRevenueTotal) / lastMonthRevenueTotal * 100).toFixed(1)
-      : 0;
+      : '0';
     
     const orderGrowth = lastMonthOrders > 0
       ? ((totalOrders - lastMonthOrders) / lastMonthOrders * 100).toFixed(1)
-      : 0;
+      : '0';
 
     console.log('✅ Dashboard stats fetched:', { sellerId, totalOrders, totalRevenue });
 

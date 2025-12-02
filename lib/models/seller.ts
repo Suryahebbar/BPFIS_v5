@@ -173,7 +173,7 @@ SellerSchema.index({ isActive: 1 });
 SellerSchema.index({ createdAt: -1 });
 
 // Pre-save middleware
-SellerSchema.pre('save', function(next) {
+SellerSchema.pre('save', function(next: any) {
   this.updatedAt = new Date();
   next();
 });

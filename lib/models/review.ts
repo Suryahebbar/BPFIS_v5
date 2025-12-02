@@ -179,7 +179,7 @@ ReviewSchema.index({ customerId: 1, productId: 1 });
 ReviewSchema.index({ createdAt: -1 });
 
 // Pre-save middleware
-ReviewSchema.pre('save', function(next) {
+ReviewSchema.pre('save', function(next: any) {
   this.updatedAt = new Date();
   
   // Auto-determine sentiment based on rating
@@ -341,10 +341,10 @@ ReviewSchema.statics.getReviewStats = function(sellerId: mongoose.Types.ObjectId
         totalReviews: { $sum: 1 },
         averageRating: { $avg: '$rating' },
         sentimentCounts: {
-          good: { $sum: { $cond: [{ $eq: ['$sentiment', 'good'] }, 1, 0] } },
-          moderate: { $sum: { $cond: [{ $eq: ['$sentiment', 'moderate'] }, 1, 0] } },
-          poor: { $sum: { $cond: [{ $eq: ['$sentiment', 'poor'] }, 1, 0] } }
-        },
+          good: { $sum: { $cond: [{ $eq: ['$sentiment', 'good'] }, 1, 0] } } as any,
+          moderate: { $sum: { $cond: [{ $eq: ['$sentiment', 'moderate'] }, 1, 0] } } as any,
+          poor: { $sum: { $cond: [{ $eq: ['$sentiment', 'poor'] }, 1, 0] } } as any
+        } as any,
         flaggedCount: { $sum: { $cond: ['$isFlagged', 1, 0] } },
         respondedCount: { $sum: { $cond: [{ $ne: ['$sellerResponse', null] }, 1, 0] } },
         verifiedCount: { $sum: { $cond: ['$isVerified', 1, 0] } }
