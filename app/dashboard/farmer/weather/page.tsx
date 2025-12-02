@@ -112,21 +112,41 @@ export default function WeatherPage() {
 
       console.log('Final coordinates to use:', { finalLat, finalLon });
 
-      // Get location name
-      const locationResponse = await fetch(`/api/weather/location?lat=${finalLat}&lon=${finalLon}`);
+      // Get location name - with better fallback for Karnataka region
       let location = {
         display: `Coordinates: ${finalLat.toFixed(4)}, ${finalLon.toFixed(4)}`,
         city: "Unknown",
         state: "Unknown", 
         country: "Unknown"
       };
-      if (locationResponse.ok) {
-        const locationData = await locationResponse.json();
-        console.log('Location API response:', locationData);
-        location = locationData;
-        console.log('Final location object:', location);
-      } else {
-        console.log('Location API failed:', locationResponse.status);
+      
+      // Check if coordinates are in Karnataka region for better fallback
+      const latNum = parseFloat(finalLat);
+      const lonNum = parseFloat(finalLon);
+      if (latNum >= 12 && latNum <= 14 && lonNum >= 74 && lonNum <= 76) {
+        location = {
+          display: `Karnataka Region (${finalLat.toFixed(4)}, ${finalLon.toFixed(4)})`,
+          city: "Karnataka Region",
+          state: "Karnataka", 
+          country: "India"
+        };
+      }
+      
+      try {
+        const locationResponse = await fetch(`/api/weather/location?lat=${finalLat}&lon=${finalLon}`);
+        if (locationResponse.ok) {
+          const locationData = await locationResponse.json();
+          console.log('Location API response:', locationData);
+          if (locationData.display && locationData.display !== "Unknown Location" && !locationData.error) {
+            location = locationData;
+          }
+          console.log('Final location object:', location);
+        } else {
+          console.log('Location API failed:', locationResponse.status);
+        }
+      } catch (locationError) {
+        console.log('Location API error:', locationError);
+        // Fallback to coordinate display is already set above
       }
 
       // Get weather forecast
