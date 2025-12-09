@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '../../../../lib/db';
 import { User } from '../../../../lib/models/User';
+import { Seller } from '@/lib/models/supplier';
 
 export async function POST(request: Request) {
   try {
@@ -54,6 +55,36 @@ export async function POST(request: Request) {
     }
 
     await user.save();
+
+    // If this is a supplier user, ensure a Seller profile exists so login works
+    if (user.role === 'supplier') {
+      const existingSeller = await Seller.findOne({ email: user.email });
+
+      if (!existingSeller) {
+        const seller = await Seller.create({
+          companyName: user.companyName || 'Supplier',
+          email: user.email,
+          phone: user.phone || 'N/A',
+          passwordHash: user.passwordHash,
+          address: {
+            street: 'N/A',
+            city: 'N/A',
+            state: 'N/A',
+            pincode: '000000',
+            country: 'India',
+          },
+          gstNumber: undefined,
+          verificationStatus: 'verified',
+          isActive: true,
+        });
+
+        console.log('✅ Auto-created Seller profile for supplier user after OTP verification:', {
+          userId: user._id,
+          sellerId: seller._id,
+          email: seller.email,
+        });
+      }
+    }
 
     return NextResponse.json({
       message: 'OTP verified successfully',

@@ -1,9 +1,18 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getSellerId } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
+
+interface SellerProfile {
+  documents?: {
+    businessCertificate?: string;
+    tradeLicense?: string;
+    ownerIdProof?: string;
+    gstCertificate?: string;
+  };
+}
 
 export default function NewProductPage() {
   const router = useRouter();
@@ -11,6 +20,9 @@ export default function NewProductPage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [currentStep, setCurrentStep] = useState(1);
+  const [profile, setProfile] = useState<SellerProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileError, setProfileError] = useState('');
   
   const [formData, setFormData] = useState({
     // Basic Information
@@ -119,14 +131,38 @@ export default function NewProductPage() {
     });
   };
 
+  // Load supplier profile to check verification/documents before allowing product creation
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        setProfileLoading(true);
+        setProfileError('');
+
+        const response = await fetch('/api/supplier/profile', withSupplierAuth());
+
+        if (!response.ok) {
+          const data = await response.json().catch(() => ({}));
+          throw new Error((data as { error?: string }).error || 'Failed to load profile');
+        }
+
+        const data = await response.json();
+        setProfile(data.seller as SellerProfile);
+      } catch (err) {
+        console.error('Error loading supplier profile for product creation:', err);
+        setProfileError('Failed to load supplier profile. Please try again.');
+      } finally {
+        setProfileLoading(false);
+      }
+    };
+
+    void loadProfile();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError('');
     setSuccess('');
-
-    // Get seller info from localStorage
-    const sellerId = getSellerId();
 
     // Validate at least one image is uploaded
     if (formData.images.length === 0) {
@@ -166,13 +202,10 @@ export default function NewProductPage() {
         formPayload.append(`images`, file);
       });
 
-      const response = await fetch('/api/supplier/products', {
+      const response = await fetch('/api/supplier/products', withSupplierAuth({
         method: 'POST',
-        headers: {
-          'x-seller-id': sellerId
-        },
-        body: formPayload // Send FormData instead of JSON
-      });
+        body: formPayload, // Send FormData instead of JSON
+      }));
 
       const data = await response.json();
 
@@ -191,6 +224,52 @@ export default function NewProductPage() {
       setLoading(false);
     }
   };
+
+  const hasRequiredDocuments = Boolean(
+    profile?.documents?.businessCertificate &&
+    profile?.documents?.tradeLicense &&
+    profile?.documents?.ownerIdProof
+  );
+
+  if (profileLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-[#6b7280]">Checking your account status...</div>
+      </div>
+    );
+  }
+
+  if (!hasRequiredDocuments) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-white border border-[#e2d4b7] rounded-lg p-6 max-w-2xl mx-auto mt-12 text-center">
+          <h1 className="text-2xl font-semibold text-[#1f3b2c] mb-2">Complete Verification to Add Products</h1>
+          <p className="text-sm text-[#6b7280] mb-4">
+            You need to upload your business verification documents before you can add products to the marketplace.
+          </p>
+          {profileError && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+              <p className="text-red-800 text-sm">{profileError}</p>
+            </div>
+          )}
+          <div className="flex items-center justify-center space-x-4 mt-4">
+            <Link
+              href="/dashboard/supplier/profile/verification"
+              className="inline-flex items-center justify-center rounded-md bg-[#1f3b2c] px-6 py-2 text-sm font-medium text-white hover:bg-[#2d4f3c]"
+            >
+              Complete Document Upload
+            </Link>
+            <Link
+              href="/dashboard/supplier/profile"
+              className="inline-flex items-center justify-center rounded-md border border-[#e2d4b7] px-6 py-2 text-sm font-medium text-[#1f3b2c] hover:bg-[#f9fafb]"
+            >
+              View Profile
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

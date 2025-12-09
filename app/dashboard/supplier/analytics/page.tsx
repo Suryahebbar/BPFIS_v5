@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface AnalyticsData {
   overview: {
@@ -10,6 +10,8 @@ interface AnalyticsData {
     totalOrders: number;
     avgOrderValue: number;
     activeProducts: number;
+    revenueGrowth: number;
+    orderGrowth: number;
   };
   salesChart: {
     date: string;
@@ -39,19 +41,26 @@ export default function AnalyticsPage() {
   const loadAnalytics = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/supplier/analytics?range=${timeRange}`, {
-        headers: getAuthHeaders()
-      });
+      setError('');
+      const response = await fetch(`/api/supplier/analytics?range=${timeRange}`, withSupplierAuth());
 
-      if (!response.ok) {
-        throw new Error('Failed to load analytics');
+      if (response.status === 401) {
+        window.location.href = '/dashboard/supplier/login';
+        return;
       }
 
-      const analyticsData = await response.json();
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || 'Failed to load analytics');
+      }
+
+      const analyticsData: AnalyticsData = await response.json();
       setData(analyticsData);
+      setError('');
     } catch (error) {
       console.error('Error loading analytics:', error);
-      setError('Failed to load analytics data');
+      setData(null);
+      setError(error instanceof Error ? error.message : 'Failed to load analytics data');
     } finally {
       setLoading(false);
     }
@@ -72,13 +81,17 @@ export default function AnalyticsPage() {
   if (!data) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-[#6b7280]">No analytics data available</div>
+        <div className="text-[#6b7280]">{error || 'No analytics data available'}</div>
       </div>
     );
   }
 
   // Check if there's actual data (not all zeros)
-  const hasData = data.overview.totalOrders > 0 || data.overview.totalRevenue > 0;
+  const hasData =
+    data.overview.totalOrders > 0 ||
+    data.overview.totalRevenue > 0 ||
+    data.topProducts.length > 0 ||
+    data.salesChart.length > 0;
 
   return (
     <div className="space-y-6">

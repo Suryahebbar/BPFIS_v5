@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface SellerProfile {
   _id: string;
@@ -38,9 +38,9 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<SellerProfile | null>(null);
   const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [isUsingLocalStorage, setIsUsingLocalStorage] = useState(false);
   
   const [formData, setFormData] = useState({
     companyName: '',
@@ -61,107 +61,39 @@ export default function ProfilePage() {
     }
   });
 
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+
   useEffect(() => {
-    loadProfile();
+    void loadProfile();
   }, []);
 
   const loadProfile = async () => {
     try {
-      // Always try API first, only use localStorage as fallback
-      const response = await fetch('/api/seller', {
-        headers: getAuthHeaders()
-      });
+      setLoading(true);
+      setError('');
+      const response = await fetch('/api/supplier/profile', withSupplierAuth());
 
-      if (response.ok) {
-        const data = await response.json();
-        
-        if (data.seller && !data.needsSetup) {
-          // Use API data
-          setProfile(data.seller);
-          setIsUsingLocalStorage(false);
-          setFormData({
-            companyName: data.seller.companyName || '',
-            email: data.seller.email || '',
-            phone: data.seller.phone || '',
-            address: data.seller.address || {
-              street: '',
-              city: '',
-              state: '',
-              pincode: '',
-              country: 'India'
-            },
-            gstNumber: data.seller.gstNumber || '',
-            businessDetails: data.seller.businessDetails || {
-              businessType: '',
-              yearsInOperation: '',
-              productCategories: ''
-            }
-          });
-          return;
-        }
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error((data as { error?: string }).error || 'Failed to load profile');
       }
 
-      // Fallback to localStorage only if API fails or needs setup
-      const localProfile = localStorage.getItem('sellerProfile');
-      if (localProfile) {
-        const profileData = JSON.parse(localProfile);
-        setProfile(profileData);
-        setIsUsingLocalStorage(true); // Set flag for localStorage usage
-        setFormData({
-          companyName: profileData.companyName || '',
-          email: profileData.email || '',
-          phone: profileData.phone || '',
-          address: profileData.address || {
-            street: '',
-            city: '',
-            state: '',
-            pincode: '',
-            country: 'India'
-          },
-          gstNumber: profileData.gstNumber || '',
-          businessDetails: profileData.businessDetails || {
-            businessType: '',
-            yearsInOperation: '',
-            productCategories: ''
-          }
-        });
-        setLoading(false);
-        return;
-      }
+      const data = await response.json();
 
-      const saveResponse = await fetch('/api/seller', {
-        headers: getAuthHeaders()
-      });
-
-      if (!saveResponse.ok) {
-        throw new Error('Failed to load profile');
-      }
-
-      const data = await saveResponse.json();
-      
-      // Check if setup is needed
-      if (data.needsSetup) {
-        // Redirect to setup page
-        window.location.href = '/dashboard/supplier/setup';
-        return;
-      }
-      
-      const profileData = data.seller;
-      
-      setProfile(profileData);
+      setProfile(data.seller);
       setFormData({
-        companyName: profileData.companyName || '',
-        email: profileData.email || '',
-        phone: profileData.phone || '',
-        address: profileData.address || {
+        companyName: data.seller?.companyName || '',
+        email: data.seller?.email || '',
+        phone: data.seller?.phone || '',
+        address: data.seller?.address || {
           street: '',
           city: '',
           state: '',
           pincode: '',
           country: 'India'
         },
-        gstNumber: profileData.gstNumber || '',
-        businessDetails: profileData.businessDetails || {
+        gstNumber: data.seller?.gstNumber || '',
+        businessDetails: data.seller?.businessDetails || {
           businessType: '',
           yearsInOperation: '',
           productCategories: ''
@@ -173,13 +105,6 @@ export default function ProfilePage() {
     } finally {
       setLoading(false);
     }
-  };
-
-  // For development: Add a way to clear profile data
-  const clearProfileData = () => {
-    localStorage.removeItem('sellerProfile');
-    setIsUsingLocalStorage(false); // Reset the flag
-    window.location.reload();
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -202,42 +127,57 @@ export default function ProfilePage() {
     }
   };
 
+  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setAvatarFile(event.target.files?.[0] || null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccess('');
+    setSaving(true);
 
     try {
-      const response = await fetch('/api/seller', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
-        },
-        body: JSON.stringify(formData)
-      });
+      let response: Response;
 
-      const data = await response.json();
+      if (avatarFile) {
+        const payload = new FormData();
+        payload.append('companyName', formData.companyName);
+        payload.append('phone', formData.phone);
+        payload.append('gstNumber', formData.gstNumber);
+        payload.append('address', JSON.stringify(formData.address));
+        payload.append('businessDetails', JSON.stringify(formData.businessDetails));
+        payload.append('avatar', avatarFile);
 
-      if (response.ok) {
-        setSuccess('Profile updated successfully!');
-        setEditing(false);
-        
-        // For development, save to localStorage
-        const updatedProfile = {
-          ...profile,
-          ...formData,
-          updatedAt: new Date().toISOString()
-        };
-        localStorage.setItem('sellerProfile', JSON.stringify(updatedProfile));
-        
-        await loadProfile(); // Reload profile
+        response = await fetch('/api/supplier/profile', withSupplierAuth({
+          method: 'PUT',
+          body: payload
+        }));
       } else {
-        setError(data.error || 'Failed to update profile');
+        response = await fetch('/api/supplier/profile', withSupplierAuth({
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(formData)
+        }));
       }
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error((data as { error?: string }).error || 'Failed to update profile');
+      }
+
+      setSuccess('Profile updated successfully!');
+      setEditing(false);
+      setAvatarFile(null);
+      await loadProfile();
     } catch (error) {
       console.error('Error updating profile:', error);
-      setError('Failed to update profile');
+      setError(error instanceof Error ? error.message : 'Failed to update profile');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -268,28 +208,6 @@ export default function ProfilePage() {
 
   return (
     <div className="space-y-6">
-      {/* Development Mode Indicator - Only show when using localStorage */}
-      {isUsingLocalStorage && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-yellow-800">
-                Development Mode - Profile loaded from localStorage
-              </p>
-              <p className="text-xs text-yellow-600 mt-1">
-                This is for testing purposes. In production, data will be loaded from the database.
-              </p>
-            </div>
-            <button
-              onClick={clearProfileData}
-              className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-1 rounded border border-yellow-300"
-            >
-              Clear Profile Data
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>

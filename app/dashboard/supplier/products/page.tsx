@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface Product {
   _id: string;
@@ -32,6 +32,8 @@ interface ProductsResponse {
 
 export default function ProductsPage() {
   const [products, setProducts] = useState<Product[]>([]);
+  const [taxInclusive, setTaxInclusive] = useState<boolean>(true);
+  const [taxRate, setTaxRate] = useState<number>(0.18);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -74,9 +76,7 @@ export default function ProductsPage() {
         ...(selectedStatus && { status: selectedStatus })
       });
 
-      const response = await fetch(`/api/supplier/products?${params}`, {
-        headers: getAuthHeaders()
-      });
+      const response = await fetch(`/api/supplier/products?${params}`, withSupplierAuth());
 
       if (!response.ok) {
         throw new Error('Failed to fetch products');
@@ -94,8 +94,30 @@ export default function ProductsPage() {
   }, [currentPage, searchTerm, selectedCategory, selectedStatus]);
 
   useEffect(() => {
-    loadProducts();
+    const loadAll = async () => {
+      try {
+        const settingsRes = await fetch('/api/supplier/settings', withSupplierAuth());
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
+          if (data.settings) {
+            setTaxInclusive(!!data.settings.taxInclusive);
+            setTaxRate(typeof data.settings.taxRate === 'number' ? data.settings.taxRate : 0.18);
+          }
+        }
+      } catch (e) {
+        console.error('Error loading supplier settings for products page:', e);
+      }
+
+      await loadProducts();
+    };
+
+    loadAll();
   }, [loadProducts]);
+
+  const formatPrice = (basePrice: number) => {
+    const price = taxInclusive ? basePrice * (1 + taxRate) : basePrice;
+    return price.toFixed(2);
+  };
 
   const handleDeleteProduct = async (productId: string) => {
     if (!confirm('Are you sure you want to delete this product?')) {
@@ -103,10 +125,9 @@ export default function ProductsPage() {
     }
 
     try {
-      const response = await fetch(`/api/supplier/products/${productId}`, {
-        method: 'DELETE',
-        headers: getAuthHeaders()
-      });
+      const response = await fetch(`/api/supplier/products/${productId}`, withSupplierAuth({
+        method: 'DELETE'
+      }));
 
       if (!response.ok) {
         throw new Error('Failed to delete product');
@@ -121,10 +142,9 @@ export default function ProductsPage() {
 
   const handleToggleStatus = async (productId: string) => {
     try {
-      const response = await fetch(`/api/supplier/products/${productId}/toggle-active`, {
-        method: 'POST',
-        headers: getAuthHeaders()
-      });
+      const response = await fetch(`/api/supplier/products/${productId}`, withSupplierAuth({
+        method: 'POST'
+      }));
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));

@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface Product {
   _id: string;
@@ -66,9 +66,7 @@ export default function EditProductPage() {
 
   const loadProduct = useCallback(async () => {
     try {
-      const response = await fetch(`/api/supplier/products/${productId}`, {
-        headers: getAuthHeaders()
-      });
+      const response = await fetch(`/api/supplier/products/${productId}`, withSupplierAuth());
 
       if (!response.ok) {
         throw new Error('Failed to load product');
@@ -149,14 +147,13 @@ export default function EditProductPage() {
         }
       };
 
-      const response = await fetch(`/api/supplier/products/${productId}`, {
+      const response = await fetch(`/api/supplier/products/${productId}`, withSupplierAuth({
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
-      });
+      }));
 
       const data = await response.json();
 

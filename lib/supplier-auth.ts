@@ -1,27 +1,20 @@
-// Helper utility for supplier authentication
-export function getSellerId(): string {
-  if (typeof window === 'undefined') {
-    return '';
+export function logoutSupplier() {
+  if (typeof window !== 'undefined') {
+    void fetch('/api/auth/logout', {
+      method: 'POST',
+      credentials: 'include'
+    }).catch((err) => {
+      console.error('Failed to logout supplier session:', err);
+    });
   }
-  
-  const sellerInfo = localStorage.getItem('sellerInfo');
-  if (sellerInfo) {
-    try {
-      const seller = JSON.parse(sellerInfo);
-      return seller.id || seller._id || '';
-    } catch (err) {
-      console.error('Error parsing seller info:', err);
-    }
-  }
-  // Fallback for development so API routes that handle 'temp-seller-id' work
-  return 'temp-seller-id';
 }
 
-export function getAuthHeaders(): Record<string, string> {
-  const id = getSellerId();
-  const headers: Record<string, string> = {};
-  if (id) {
-    headers['x-seller-id'] = id;
-  }
-  return headers;
+export function withSupplierAuth(options: RequestInit = {}): RequestInit {
+  const headers = new Headers(options.headers as HeadersInit | undefined);
+
+  return {
+    ...options,
+    credentials: 'include',
+    headers
+  };
 }

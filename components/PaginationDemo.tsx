@@ -42,7 +42,7 @@ const PaginationDemo: React.FC = () => {
     {
       key: 'status' as keyof User,
       label: 'Status',
-      render: (status: string) => (
+      render: (status: unknown) => (
         <span
           className={`px-2 py-1 text-xs rounded-full ${
             status === 'Active'
@@ -52,7 +52,7 @@ const PaginationDemo: React.FC = () => {
               : 'bg-yellow-100 text-yellow-800'
           }`}
         >
-          {status}
+          {String(status)}
         </span>
       )
     }
@@ -103,7 +103,7 @@ const PaginationDemo: React.FC = () => {
             </div>
             
             <PaginatedTable
-              data={sampleUsers}
+              data={sampleUsers as unknown as Record<string, unknown>[]}
               columns={columns}
               itemsPerPage={10}
               showRowsPerPage={true}

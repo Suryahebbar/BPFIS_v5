@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Product } from '@/lib/models/product';
-import { Seller } from '@/lib/models/seller';
+import { Product, Seller } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
-
-// Helper function to get seller ID from request headers
-function getSellerId(request: NextRequest): string | null {
-  return request.headers.get('x-seller-id') || null;
-}
+import { requireAuth } from '@/lib/supplier-auth-middleware';
+import mongoose from 'mongoose';
 
 // GET /api/supplier/dashboard/low-stock - Get low stock products
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
     
-    const sellerId = getSellerId(request);
-    if (!sellerId) {
-      return NextResponse.json(
-        { error: 'Seller ID is required' },
-        { status: 401 }
-      );
-    }
+    // Authenticate supplier
+    const auth = await requireAuth(request);
+    const sellerId = auth.sellerId;
 
     console.log('📦 Fetching low stock products:', { sellerId });
 
@@ -33,14 +25,14 @@ export async function GET(request: NextRequest) {
     }
 
     // Get real low stock products from database
-    const products = await Product.find({ 
-      sellerId,
-      $expr: { $lte: ['$stockQuantity', '$reorderThreshold'] }
-    })
-    .sort({ stockQuantity: 1 })
-    .limit(10)
-    .select('name sku stockQuantity reorderThreshold')
-    .lean();
+    const sellerObjectId = new mongoose.Types.ObjectId(sellerId);
+    const products = await Product.aggregate([
+      { $match: { sellerId: sellerObjectId } },
+      { $match: { $expr: { $lte: ['$stockQuantity', '$reorderThreshold'] } } },
+      { $sort: { stockQuantity: 1 } },
+      { $limit: 10 },
+      { $project: { name: 1, sku: 1, stockQuantity: 1, reorderThreshold: 1 } }
+    ]);
 
     console.log('✅ Low stock products fetched:', { sellerId, count: products.length });
 

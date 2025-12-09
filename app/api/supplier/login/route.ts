@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { Seller } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
 import bcrypt from 'bcryptjs';
+import { AUTH_COOKIE_NAME, signAuthToken } from '@/lib/auth';
 
 // POST /api/supplier/login - Login supplier
 export async function POST(request: Request) {
@@ -60,10 +61,29 @@ export async function POST(request: Request) {
     // Remove sensitive data from response
     const { passwordHash, otp, otpExpiry, ...sellerResponse } = seller.toObject();
 
-    return NextResponse.json({ 
-      message: 'Login successful',
-      seller: sellerResponse
+    const token = await signAuthToken({
+      sub: seller._id.toString(),
+      role: 'supplier',
+      email: seller.email
     });
+
+    const response = NextResponse.json({ 
+      message: 'Login successful',
+      seller: sellerResponse,
+      token
+    });
+
+    response.cookies.set({
+      name: AUTH_COOKIE_NAME,
+      value: token,
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 7,
+      secure: process.env.NODE_ENV === 'production'
+    });
+
+    return response;
   } catch (error) {
     console.error('❌ Error during login:', error);
     return NextResponse.json({ error: 'Login failed' }, { status: 500 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface Review {
   _id: string;
@@ -48,9 +48,7 @@ export default function ReviewsPage() {
         search: searchTerm
       });
 
-      const response = await fetch(`/api/supplier/reviews?${params}`, {
-        headers: getAuthHeaders()
-      });
+      const response = await fetch(`/api/supplier/reviews?${params}`, withSupplierAuth());
 
       if (!response.ok) {
         throw new Error('Failed to fetch reviews');
@@ -77,14 +75,13 @@ export default function ReviewsPage() {
     }
 
     try {
-      const response = await fetch(`/api/supplier/reviews/${reviewId}/respond`, {
+      const response = await fetch(`/api/supplier/reviews/${reviewId}/respond`, withSupplierAuth({
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ response: responseText })
-      });
+      }));
 
       const data = await response.json();
 
@@ -104,14 +101,13 @@ export default function ReviewsPage() {
 
   const handleFlag = async (reviewId: string, flagged: boolean) => {
     try {
-      const response = await fetch(`/api/supplier/reviews/${reviewId}/flag`, {
+      const response = await fetch(`/api/supplier/reviews/${reviewId}/flag`, withSupplierAuth({
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ flagged })
-      });
+      }));
 
       const data = await response.json();
 

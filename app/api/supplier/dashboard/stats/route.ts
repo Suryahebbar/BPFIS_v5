@@ -1,26 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Seller } from '@/lib/models/seller';
-import { Product } from '@/lib/models/product';
-import { Order } from '@/lib/models/order';
+import { Seller, Product, Order } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
-
-// Helper function to get seller ID from request headers
-function getSellerId(request: NextRequest): string | null {
-  return request.headers.get('x-seller-id') || null;
-}
+import { requireAuth } from '@/lib/supplier-auth-middleware';
+import mongoose from 'mongoose';
 
 // GET /api/supplier/dashboard/stats - Get dashboard statistics
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
     
-    const sellerId = getSellerId(request);
-    if (!sellerId) {
-      return NextResponse.json(
-        { error: 'Seller ID is required' },
-        { status: 401 }
-      );
-    }
+    // Authenticate supplier
+    const auth = await requireAuth(request);
+    const sellerId = auth.sellerId;
 
     console.log('📊 Fetching dashboard stats:', { sellerId });
 
@@ -34,25 +25,34 @@ export async function GET(request: NextRequest) {
     }
 
     // Get real statistics from database
+    const sellerObjectId = new mongoose.Types.ObjectId(sellerId);
     const [
       totalOrders,
       revenueResult,
       activeProducts,
       avgOrderResult
     ] = await Promise.all([
-      Order.countDocuments({ sellerId }),
       Order.aggregate([
-        { $match: { sellerId, 'paymentDetails.status': 'paid' } },
+        { $match: { sellerId: sellerObjectId } },
+        { $count: "total" }
+      ]),
+      Order.aggregate([
+        { $match: { sellerId: sellerObjectId, paymentStatus: 'paid' } },
         { $group: { _id: null, total: { $sum: '$totalAmount' } } }
       ]),
-      Product.countDocuments({ sellerId, status: 'active' }),
+      Product.aggregate([
+        { $match: { sellerId: sellerObjectId, status: 'active' } },
+        { $count: "total" }
+      ]),
       Order.aggregate([
-        { $match: { sellerId, 'paymentDetails.status': 'paid' } },
+        { $match: { sellerId: sellerObjectId, paymentStatus: 'paid' } },
         { $group: { _id: null, avg: { $avg: '$totalAmount' } } }
       ])
     ]);
 
+    const totalOrdersCount = totalOrders[0]?.total || 0;
     const totalRevenue = revenueResult[0]?.total || 0;
+    const activeProductsCount = activeProducts[0]?.total || 0;
     const avgOrderValue = avgOrderResult[0]?.avg || 0;
 
     // Get previous month data for growth calculation
@@ -60,15 +60,18 @@ export async function GET(request: NextRequest) {
     lastMonth.setMonth(lastMonth.getMonth() - 1);
     
     const [lastMonthOrders, lastMonthRevenue] = await Promise.all([
-      Order.countDocuments({ 
-        sellerId, 
-        createdAt: { $gte: lastMonth, $lt: new Date() } 
-      }),
+      Order.aggregate([
+        { $match: { 
+          sellerId: sellerObjectId,
+          createdAt: { $gte: lastMonth, $lt: new Date() } 
+        }},
+        { $count: "total" }
+      ]),
       Order.aggregate([
         { 
           $match: { 
-            sellerId, 
-            'paymentDetails.status': 'paid',
+            sellerId: sellerObjectId,
+            paymentStatus: 'paid',
             createdAt: { $gte: lastMonth, $lt: new Date() }
           } 
         },
@@ -76,21 +79,22 @@ export async function GET(request: NextRequest) {
       ])
     ]);
 
+    const lastMonthOrdersCount = lastMonthOrders[0]?.total || 0;
     const lastMonthRevenueTotal = lastMonthRevenue[0]?.total || 0;
     const revenueGrowth = lastMonthRevenueTotal > 0 
       ? ((totalRevenue - lastMonthRevenueTotal) / lastMonthRevenueTotal * 100).toFixed(1)
       : '0';
     
-    const orderGrowth = lastMonthOrders > 0
-      ? ((totalOrders - lastMonthOrders) / lastMonthOrders * 100).toFixed(1)
+    const orderGrowth = lastMonthOrdersCount > 0
+      ? ((totalOrdersCount - lastMonthOrdersCount) / lastMonthOrdersCount * 100).toFixed(1)
       : '0';
 
     console.log('✅ Dashboard stats fetched:', { sellerId, totalOrders, totalRevenue });
 
     return NextResponse.json({
       totalRevenue,
-      totalOrders,
-      activeProducts,
+      totalOrders: totalOrdersCount,
+      activeProducts: activeProductsCount,
       avgOrderValue,
       revenueGrowth: parseFloat(revenueGrowth),
       orderGrowth: parseFloat(orderGrowth)

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface SellerProfile {
   _id: string;
@@ -80,9 +80,7 @@ export default function VerificationPage() {
 
   const loadProfile = async () => {
     try {
-      const response = await fetch('/api/seller', {
-        headers: getAuthHeaders()
-      });
+      const response = await fetch('/api/supplier/profile', withSupplierAuth());
 
       if (!response.ok) {
         throw new Error('Failed to load profile');
@@ -119,13 +117,10 @@ export default function VerificationPage() {
         }
       });
 
-      const response = await fetch('/api/seller/documents', {
+      const response = await fetch('/api/seller/documents', withSupplierAuth({
         method: 'POST',
-        headers: {
-          ...getAuthHeaders()
-        },
         body: formData
-      });
+      }));
 
       const data = await response.json();
 

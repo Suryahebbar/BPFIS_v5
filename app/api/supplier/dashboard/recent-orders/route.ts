@@ -1,25 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Order } from '@/lib/models/order';
-import { Seller } from '@/lib/models/seller';
+import { Order, Seller } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
-
-// Helper function to get seller ID from request headers
-function getSellerId(request: NextRequest): string | null {
-  return request.headers.get('x-seller-id') || null;
-}
+import { requireAuth } from '@/lib/supplier-auth-middleware';
+import mongoose from 'mongoose';
 
 // GET /api/supplier/dashboard/recent-orders - Get recent orders
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
     
-    const sellerId = getSellerId(request);
-    if (!sellerId) {
-      return NextResponse.json(
-        { error: 'Seller ID is required' },
-        { status: 401 }
-      );
-    }
+    // Authenticate supplier
+    const auth = await requireAuth(request);
+    const sellerId = auth.sellerId;
 
     console.log('📋 Fetching recent orders:', { sellerId });
 
@@ -33,11 +25,13 @@ export async function GET(request: NextRequest) {
     }
 
     // Get real recent orders from database
-    const orders = await Order.find({ sellerId })
-      .sort({ createdAt: -1 })
-      .limit(10)
-      .select('orderNumber customer totalAmount status createdAt')
-      .lean();
+    const sellerObjectId = new mongoose.Types.ObjectId(sellerId);
+    const orders = await Order.aggregate([
+      { $match: { sellerId: sellerObjectId } },
+      { $sort: { createdAt: -1 } },
+      { $limit: 10 },
+      { $project: { orderNumber: 1, customer: 1, totalAmount: 1, orderStatus: 1, createdAt: 1 } }
+    ]);
 
     console.log('✅ Recent orders fetched:', { sellerId, count: orders.length });
 

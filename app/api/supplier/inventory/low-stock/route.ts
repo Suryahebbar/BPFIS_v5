@@ -1,46 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Product } from '@/lib/models/product';
+import { Product } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
+import { requireAuth } from '@/lib/supplier-auth-middleware';
 
-export async function GET(request: Request) {
+// GET /api/supplier/inventory/low-stock - Get low stock products for authenticated supplier
+export async function GET(request: NextRequest) {
   try {
-    const sellerId = request.headers.get('x-seller-id');
-    
-    if (!sellerId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     await connectDB();
 
-    // Find products with low stock (less than 10 units)
-    const lowStockProducts = await Product.find({
-      ...(sellerId !== 'temp-seller-id' && { sellerId }),
+    // Authenticate supplier via cookie-based session
+    const auth = await requireAuth(request);
+    const sellerId = auth.sellerId;
+
+    // Find products where stock is zero or at/below reorder threshold
+    const products = await Product.find({
+      // Cast sellerId to any to avoid TS/ObjectId generic mismatch while still filtering correctly
+      sellerId: sellerId as any,
       status: 'active',
       $or: [
-        { 'inventory.currentStock': { $lt: 10 } },
-        { 'inventory.currentStock': { $exists: false } }
+        { stockQuantity: { $lte: 0 } },
+        { $expr: { $lte: ['$stockQuantity', '$reorderThreshold'] } }
       ]
     })
-    .select('name sku inventory.currentStock inventory.lowStockThreshold')
-    .sort({ 'inventory.currentStock': 1 })
-    .limit(20)
-    .lean();
-
-    const items = lowStockProducts.map(product => ({
-      productId: product._id,
-      name: product.name,
-      sku: product.sku,
-      currentStock: product.inventory?.currentStock || 0,
-      lowStockThreshold: product.inventory?.lowStockThreshold || 10,
-      status: product.inventory?.currentStock < 10 ? 'low' : 'out'
-    }));
+      .select('name sku category stockQuantity reorderThreshold price status')
+      .sort({ stockQuantity: 1 })
+      .limit(50)
+      .lean();
 
     return NextResponse.json({
-      items,
-      total: items.length
+      products,
+      total: products.length,
     });
   } catch (error) {
-    console.error('Error fetching low stock items:', error);
-    return NextResponse.json({ error: 'Failed to fetch low stock items' }, { status: 500 });
+    console.error('Error fetching low stock products:', error);
+    return NextResponse.json({ error: 'Failed to fetch low stock products' }, { status: 500 });
   }
 }

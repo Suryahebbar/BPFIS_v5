@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Product } from '@/lib/models/product';
+import { Product as SupplierProduct } from '@/lib/models/supplier';
 import { Seller } from '@/lib/models/seller';
 import { connectDB } from '@/lib/db';
 
@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     }
 
     // Fetch products with seller information
-    const products = await Product.find(query)
+    const products = await SupplierProduct.find(query)
       .populate('sellerId', 'companyName')
       .sort(sort)
       .skip((page - 1) * limit)
@@ -65,26 +65,29 @@ export async function GET(request: Request) {
       .lean();
 
     // Format products for marketplace
-    const formattedProducts = products.map(product => ({
+    const formattedProducts = products.map((product: any) => ({
       _id: product._id,
       name: product.name,
       description: product.description,
       price: product.price,
-      images: product.images || [],
+      images: Array.isArray(product.images) ? product.images.map((img: any) => ({
+        url: img.url || '',
+        alt: img.alt || product.name
+      })) : [],
       category: product.category,
       seller: {
-        _id: product.sellerId?._id,
-        companyName: product.sellerId?.companyName || 'Unknown Seller'
+        _id: product.sellerId?._id || product.sellerId,
+        companyName: (product.sellerId as any)?.companyName || 'Unknown Seller'
       },
-      stock: product.inventory?.currentStock || 0,
-      rating: product.rating || 0,
-      reviews: product.reviewCount || 0,
+      stock: product.stockQuantity || 0,
+      rating: 0, // Not available in the supplier model
+      reviews: 0, // Not available in the supplier model
       createdAt: product.createdAt,
-      tags: product.tags || [],
-      featured: product.featured || false
+      tags: Array.isArray(product.tags) ? product.tags : [],
+      status: product.status || 'draft'
     }));
 
-    const total = await Product.countDocuments(query);
+    const total = await SupplierProduct.countDocuments(query);
 
     return NextResponse.json({
       products: formattedProducts,

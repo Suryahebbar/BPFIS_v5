@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { connectDB } from '../../../../lib/db';
 import { User } from '../../../../lib/models/User';
 import { AUTH_COOKIE_NAME, signAuthToken } from '../../../../lib/auth';
+import { Seller } from '@/lib/models/supplier';
 
 export async function POST(request: Request) {
   try {
@@ -41,10 +42,63 @@ export async function POST(request: Request) {
       );
     }
 
+    let tokenSubject = user._id.toString();
+    let tokenRole = user.role;
+    let tokenEmail = user.email;
+
+    if (user.role === 'supplier') {
+      let seller = await Seller.findOne({ email: user.email });
+
+      // If no Seller profile exists yet, auto-create one so supplier can log in
+      if (!seller) {
+        seller = await Seller.create({
+          companyName: user.companyName || 'Supplier',
+          email: user.email,
+          phone: user.phone || 'N/A',
+          passwordHash: user.passwordHash,
+          address: {
+            street: 'N/A',
+            city: 'N/A',
+            state: 'N/A',
+            pincode: '000000',
+            country: 'India',
+          },
+          verificationStatus: 'verified',
+          isActive: true,
+        });
+
+        console.log('✅ Auto-created Seller profile during supplier login:', {
+          userId: user._id,
+          sellerId: seller._id,
+          email: seller.email,
+        });
+      }
+
+      if (!seller.isActive) {
+        return NextResponse.json(
+          { message: 'Your supplier account is inactive. Please contact support.' },
+          { status: 403 }
+        );
+      }
+
+      // Allow login for pending/verified suppliers.
+      // Only block if verification has been explicitly rejected.
+      if (seller.verificationStatus === 'rejected') {
+        return NextResponse.json(
+          { message: 'Your supplier verification was rejected. Please contact support.' },
+          { status: 403 }
+        );
+      }
+
+      tokenSubject = seller._id.toString();
+      tokenRole = 'supplier';
+      tokenEmail = seller.email;
+    }
+
     const token = await signAuthToken({
-      sub: user._id.toString(),
-      role: user.role,
-      email: user.email,
+      sub: tokenSubject,
+      role: tokenRole,
+      email: tokenEmail,
     });
 
     const response = NextResponse.json({
@@ -52,7 +106,7 @@ export async function POST(request: Request) {
       user: {
         id: user._id,
         email: user.email,
-        role: user.role,
+        role: tokenRole,
       },
     });
 

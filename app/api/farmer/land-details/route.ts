@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { connectDB } from '../../../../lib/db';
-import { LandDetails } from '../../../../lib/models/LandDetails';
-import { writeFile, mkdir } from 'fs/promises';
-import { join } from 'path';
-import { existsSync } from 'fs';
+import { connectDB } from '@/lib/db';
+import { LandDetails } from '@/lib/models/LandDetails';
 import { ObjectId } from 'mongodb';
+import { uploadFile } from '@/lib/cloudinary';
+import Document from '@/lib/models/Document';
 
 // GET - Fetch all land details for a user
 export async function GET(request: NextRequest) {
@@ -85,134 +84,115 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid User ID format' }, { status: 400 });
     }
 
-    // Handle image upload
+    // Handle image upload to Cloudinary
     let imageData = null;
     if (sketchImage && sketchImage.size > 0) {
-      const bytes = await sketchImage.arrayBuffer();
-      const buffer = Buffer.from(bytes);
+      const buffer = Buffer.from(await sketchImage.arrayBuffer());
       
-      // Create uploads directory if it doesn't exist
-      const uploadsDir = join(process.cwd(), 'public', 'uploads', 'land-sketches');
-      if (!existsSync(uploadsDir)) {
-        await mkdir(uploadsDir, { recursive: true });
+      // Upload to Cloudinary
+      const uploadResult = await uploadFile(buffer, 'land-sketches');
+      
+      if (!uploadResult.success || !uploadResult.data) {
+        console.error('Failed to upload land sketch to Cloudinary:', uploadResult.error);
+        return NextResponse.json(
+          { 
+            success: false,
+            error: uploadResult.error || 'Failed to upload land sketch to Cloudinary'
+          }, 
+          { status: 500 }
+        );
       }
-      
-      // Generate unique filename
-      const timestamp = Date.now();
-      const filename = `${userId}_${timestamp}_${sketchImage.name}`;
-      const filepath = join(uploadsDir, filename);
-      
-      // Write file
-      await writeFile(filepath, buffer);
-      
-      imageData = {
-        filename: filename,
+
+      // Create document record
+      const doc = new Document({
+        owner: userObjectId,
+        type: 'land-sketch',
         originalName: sketchImage.name,
-        path: `/uploads/land-sketches/${filename}`,
+        mimeType: sketchImage.type,
+        size: sketchImage.size,
+        path: uploadResult.data.url,
+        cloudinaryId: uploadResult.data.publicId,
+        isPublic: true,
+        tags: ['land-sketch', `user-${userId}`]
+      });
+      
+      await doc.save();
+
+      imageData = {
+        filename: sketchImage.name,
+        originalName: sketchImage.name,
+        path: uploadResult.data.url,
         size: sketchImage.size,
         mimeType: sketchImage.type,
+        cloudinaryId: uploadResult.data.publicId,
+        documentId: doc._id,
         uploadedAt: new Date()
       };
     }
 
-    // Calculate land size from RTC extent format (00.00.00.00)
+    // Calculate land size from RTC extent if available
     let landSizeInAcres = 0;
-    console.log('RTC extent received:', extent);
     if (extent) {
-      // Try different formats
-      let acres = 0;
-      let guntes = 0;
-      
-      // Format 1: 2.20.00.00 (acres.guntas.other.other)
-      if (extent.includes('.')) {
-        const parts = extent.split('.');
-        console.log('Extent parts:', parts);
+      const match = extent.match(/(\d+\.?\d*)\s*(acres?|hectares?|ha|ac)/i);
+      if (match) {
+        const value = parseFloat(match[1]);
+        const unit = match[2].toLowerCase();
         
-        if (parts.length >= 2) {
-          acres = parseFloat(parts[0]) || 0;
-          guntes = parseFloat(parts[1]) || 0;
-          console.log('Parsed from format 1 - Acres:', acres, 'Guntes:', guntes);
+        if (unit.startsWith('hectare') || unit === 'ha') {
+          // Convert hectares to acres (1 hectare = 2.47105 acres)
+          landSizeInAcres = value * 2.47105;
+        } else {
+          // Already in acres
+          landSizeInAcres = value;
         }
-      } else {
-        // Format 2: Try to extract from OCR text or other formats
-        // Look for patterns like "2 acres 20 guntes" or "2.20 acres"
-        const acreMatch = extent.match(/(\d+(?:\.\d+)?)\s*acre/i);
-        const gunteMatch = extent.match(/(\d+(?:\.\d+)?)\s*gunta/i);
-        
-        if (acreMatch) {
-          acres = parseFloat(acreMatch[1]) || 0;
-        }
-        if (gunteMatch) {
-          guntes = parseFloat(gunteMatch[1]) || 0;
-        }
-        console.log('Parsed from format 2 - Acres:', acres, 'Guntes:', guntes);
       }
-      
-      // Convert guntes to acres (1 acre = 40 guntes)
-      landSizeInAcres = acres + (guntes / 40);
-      console.log('Calculated land size in acres:', landSizeInAcres);
-    } else {
-      console.log('No extent provided for land size calculation');
     }
 
-    // Check if land details already exist for this user
-    const existingLandDetails = await LandDetails.findOne({ user: userObjectId });
-    
-    // Create land details record with optional RTC details
-    const landDetailsData: any = {
-      user: userObjectId, // Use ObjectId instead of string
-      userId: userId,     // Keep string for easier lookup
-      sketchImage: imageData || existingLandDetails?.sketchImage, // Keep existing image if no new one
-      landData: {
-        centroidLatitude,
-        centroidLongitude,
-        sideLengths,
-        vertices,
-        landSizeInAcres, // Use RTC land size instead of calculated area
-        geojson
+    // Create or update land details
+    const landDetails = await LandDetails.findOneAndUpdate(
+      { userId: userId }, // Using string userId for query
+      {
+        userId: userObjectId,
+        sketchImage: imageData,
+        landData: {
+          centroidLatitude,
+          centroidLongitude,
+          sideLengths,
+          vertices,
+          landSizeInAcres,
+          geojson
+        },
+        rtcDetails: {
+          surveyNumber,
+          extent,
+          location,
+          taluk,
+          hobli,
+          village,
+          soilType,
+          cropType
+        },
+        processingStatus: 'completed',
+        processedAt: new Date()
       },
-      processingStatus: 'completed',
-      processedAt: new Date()
-    };
-
-    // Only add rtcDetails if any RTC fields are provided or keep existing
-    if (surveyNumber || extent || location || taluk || hobli || village || soilType || cropType) {
-      landDetailsData.rtcDetails = {
-        surveyNumber,
-        extent,
-        location,
-        taluk,
-        hobli,
-        village,
-        soilType,
-        cropType
-      };
-    } else if (existingLandDetails?.rtcDetails) {
-      landDetailsData.rtcDetails = existingLandDetails.rtcDetails;
-    }
-
-    let landDetails;
-    if (existingLandDetails) {
-      // Update existing record
-      Object.assign(existingLandDetails, landDetailsData);
-      landDetails = await existingLandDetails.save();
-      console.log('Land details updated successfully:', landDetails._id);
-    } else {
-      // Create new record
-      landDetails = new LandDetails(landDetailsData);
-      await landDetails.save();
-      console.log('Land details created successfully:', landDetails._id);
-    }
+      { 
+        new: true,
+        upsert: true,
+        setDefaultsOnInsert: true
+      }
+    );
 
     return NextResponse.json({ 
       success: true, 
       data: landDetails,
-      message: existingLandDetails ? 'Land details updated successfully' : 'Land details saved successfully'
+      message: landDetails.isNew ? 'Land details created successfully' : 'Land details updated successfully'
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error saving land details:', error);
     return NextResponse.json({ 
-      error: 'Failed to save land details: ' + (error instanceof Error ? error.message : 'Unknown error')
+      success: false,
+      error: error.message || 'Failed to save land details',
+      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
     }, { status: 500 });
   }
 }

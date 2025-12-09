@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface LowStockProduct {
   _id: string;
@@ -42,30 +42,31 @@ export default function InventoryPage() {
   const [success, setSuccess] = useState('');
 
   useEffect(() => {
-    loadInventoryData();
+    void loadInventoryData();
   }, []);
 
   const loadInventoryData = async () => {
     try {
-      // Load low stock products
-      const lowStockResponse = await fetch('/api/supplier/inventory/low-stock', {
-        headers: getAuthHeaders()
-      });
+      setLoading(true);
+      setError('');
 
-      if (lowStockResponse.ok) {
-        const data = await lowStockResponse.json();
-        setLowStockProducts(data.products || []);
+      const lowStockResponse = await fetch('/api/supplier/inventory/low-stock', withSupplierAuth());
+      const lowStockData = await lowStockResponse.json().catch(() => ({}));
+
+      if (!lowStockResponse.ok) {
+        throw new Error((lowStockData as { error?: string }).error || 'Failed to load low stock products');
       }
 
-      // Load recent inventory logs
-      const logsResponse = await fetch('/api/supplier/inventory/logs?limit=10', {
-        headers: getAuthHeaders()
-      });
+      setLowStockProducts((lowStockData as { products?: LowStockProduct[] }).products || []);
 
-      if (logsResponse.ok) {
-        const data = await logsResponse.json();
-        setInventoryLogs(data.logs || []);
+      const logsResponse = await fetch('/api/supplier/inventory/logs?limit=10', withSupplierAuth());
+      const logsData = await logsResponse.json().catch(() => ({}));
+
+      if (!logsResponse.ok) {
+        throw new Error((logsData as { error?: string }).error || 'Failed to load inventory logs');
       }
+
+      setInventoryLogs((logsData as { logs?: InventoryLog[] }).logs || []);
     } catch (error) {
       console.error('Error loading inventory data:', error);
       setError('Failed to load inventory data');
@@ -73,6 +74,19 @@ export default function InventoryPage() {
       setLoading(false);
     }
   };
+
+  const filteredLowStockProducts = useMemo(() => {
+    if (!searchTerm.trim()) {
+      return lowStockProducts;
+    }
+
+    const term = searchTerm.trim().toLowerCase();
+    return lowStockProducts.filter((product) =>
+      product.name.toLowerCase().includes(term) ||
+      product.sku.toLowerCase().includes(term) ||
+      product.category.toLowerCase().includes(term)
+    );
+  }, [lowStockProducts, searchTerm]);
 
   const handleQuickUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -84,19 +98,25 @@ export default function InventoryPage() {
       return;
     }
 
+    const parsedQuantity = Number(updateQuantity);
+
+    if (Number.isNaN(parsedQuantity)) {
+      setError('Quantity must be a valid number');
+      return;
+    }
+
     try {
-      const response = await fetch('/api/supplier/inventory/quick-update', {
+      const response = await fetch('/api/supplier/inventory/quick-update', withSupplierAuth({
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           productId: selectedProduct,
-          quantity: parseInt(updateQuantity),
+          quantity: parsedQuantity,
           reason: updateReason
         })
-      });
+      }));
 
       const data = await response.json();
 
@@ -179,7 +199,7 @@ export default function InventoryPage() {
               </div>
             ) : (
               <div className="space-y-3">
-                {lowStockProducts.map((product) => (
+                {filteredLowStockProducts.map((product) => (
                   <div key={product._id} className="border border-[#e2d4b7] rounded-lg p-4">
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
@@ -242,12 +262,17 @@ export default function InventoryPage() {
                   required
                 >
                   <option value="">Choose a product...</option>
-                  {lowStockProducts.map((product) => (
+                  {filteredLowStockProducts.map((product) => (
                     <option key={product._id} value={product._id}>
                       {product.name} ({product.sku}) - Current: {product.stockQuantity}
                     </option>
                   ))}
                 </select>
+                {searchTerm && filteredLowStockProducts.length === 0 && (
+                  <p className="mt-2 text-xs text-[#6b7280]">
+                    No low stock products match "{searchTerm}".
+                  </p>
+                )}
               </div>
 
               <div>

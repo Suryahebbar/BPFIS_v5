@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface Order {
   _id: string;
@@ -61,9 +61,7 @@ export default function OrdersPage() {
         search: searchTerm
       });
 
-      const response = await fetch(`/api/supplier/orders?${params}`, {
-        headers: getAuthHeaders()
-      });
+      const response = await fetch(`/api/supplier/orders?${params}`, withSupplierAuth());
 
       if (!response.ok) {
         throw new Error('Failed to fetch orders');
@@ -85,14 +83,13 @@ export default function OrdersPage() {
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
-      const response = await fetch(`/api/supplier/orders/${orderId}`, {
+      const response = await fetch(`/api/supplier/orders/${orderId}/status`, withSupplierAuth({
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ orderStatus: newStatus })
-      });
+      }));
 
       const data = await response.json();
 
@@ -245,7 +242,7 @@ export default function OrdersPage() {
                     Items
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
-                    Total
+                    Total {taxInclusive ? '(incl. tax)' : '(excl. tax)'}
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
                     Payment
@@ -294,7 +291,7 @@ export default function OrdersPage() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-[var(--navy-blue)]">
-                      ₹{order.totalAmount}
+                      ₹{formatAmount(order.totalAmount)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`badge ${getPaymentStatusColor(order.paymentStatus)}`}>

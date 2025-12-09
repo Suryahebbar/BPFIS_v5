@@ -24,11 +24,14 @@ export async function processDocument(documentId: string, userId: string) {
     let extractedData: any = {};
     let rawText = '';
 
+    // Normalize document type for comparison
+    const docType = doc.type.toLowerCase().replace(/-/g, '');
+    
     // Extract data based on document type
-    if (doc.type === 'rtc') {
+    if (docType === 'rtc') {
       extractedData = await extractRTCData(doc.path);
       rawText = JSON.stringify(extractedData, null, 2);
-    } else if (doc.type === 'aadhaar' || doc.type === 'aadhar') {
+    } else if (docType === 'aadhaar' || docType === 'aadhar') {
       extractedData = await extractAadhaarData(doc.path);
       rawText = JSON.stringify(extractedData, null, 2);
     } else {

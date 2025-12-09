@@ -1,4 +1,4 @@
-import { Schema, model, Document } from 'mongoose';
+import mongoose, { Schema, model, Document, models } from 'mongoose';
 
 // Seller Document Schema
 export interface ISeller extends Document {
@@ -15,12 +15,35 @@ export interface ISeller extends Document {
   };
   gstNumber?: string;
   avatarUrl?: string;
+  businessDetails?: {
+    businessType: string;
+    yearsInOperation: string;
+    productCategories: string;
+  };
   verificationStatus: 'pending' | 'verified' | 'rejected';
   documents: {
     businessCertificate?: string;
     tradeLicense?: string;
     ownerIdProof?: string;
     gstCertificate?: string;
+  };
+  settings?: {
+    emailNotifications: boolean;
+    smsNotifications: boolean;
+    orderNotifications: boolean;
+    lowStockAlerts: boolean;
+    reviewNotifications: boolean;
+    marketingEmails: boolean;
+    autoConfirmOrders: boolean;
+    defaultShippingMethod: string;
+    returnPolicy: string;
+    taxInclusive: boolean;
+    taxRate: number; // e.g. 0.18 for 18% GST
+    twoFactorAuth: boolean;
+    sessionTimeout: string;
+    currency: string;
+    timezone: string;
+    language: string;
   };
   isActive: boolean;
   otp?: string;
@@ -43,6 +66,11 @@ const SellerSchema = new Schema<ISeller>({
   },
   gstNumber: { type: String },
   avatarUrl: { type: String },
+  businessDetails: {
+    businessType: { type: String, default: '' },
+    yearsInOperation: { type: String, default: '' },
+    productCategories: { type: String, default: '' },
+  },
   verificationStatus: { 
     type: String, 
     enum: ['pending', 'verified', 'rejected'], 
@@ -53,6 +81,24 @@ const SellerSchema = new Schema<ISeller>({
     tradeLicense: { type: String },
     ownerIdProof: { type: String },
     gstCertificate: { type: String }
+  },
+  settings: {
+    emailNotifications: { type: Boolean, default: true },
+    smsNotifications: { type: Boolean, default: false },
+    orderNotifications: { type: Boolean, default: true },
+    lowStockAlerts: { type: Boolean, default: true },
+    reviewNotifications: { type: Boolean, default: true },
+    marketingEmails: { type: Boolean, default: false },
+    autoConfirmOrders: { type: Boolean, default: false },
+    defaultShippingMethod: { type: String, default: 'standard' },
+    returnPolicy: { type: String, default: '30-days' },
+    taxInclusive: { type: Boolean, default: true },
+    taxRate: { type: Number, default: 0.18 },
+    twoFactorAuth: { type: Boolean, default: false },
+    sessionTimeout: { type: String, default: '24h' },
+    currency: { type: String, default: 'INR' },
+    timezone: { type: String, default: 'Asia/Kolkata' },
+    language: { type: String, default: 'en' }
   },
   isActive: { type: Boolean, default: true },
   otp: { type: String },
@@ -251,7 +297,12 @@ export interface IReview extends Document {
   sentiment: 'good' | 'moderate' | 'poor';
   isFlagged: boolean;
   flagReason?: string;
-  sellerResponse?: string;
+  flaggedAt?: Date;
+  sellerResponse?: {
+    response: string;
+    respondedBy?: string;
+    respondedAt: Date;
+  };
   createdAt: Date;
   updatedAt: Date;
 }
@@ -271,7 +322,12 @@ const ReviewSchema = new Schema<IReview>({
   },
   isFlagged: { type: Boolean, default: false },
   flagReason: { type: String },
-  sellerResponse: { type: String }
+  flaggedAt: { type: Date },
+  sellerResponse: {
+    response: { type: String },
+    respondedBy: { type: String },
+    respondedAt: { type: Date }
+  }
 }, {
   timestamps: true
 });
@@ -352,10 +408,10 @@ ReviewSchema.index({ isFlagged: 1 });
 DailyAnalyticsSchema.index({ sellerId: 1, date: -1 });
 DailyAnalyticsSchema.index({ date: -1 });
 
-// Export models
-export const Seller = model<ISeller>('Supplier', SellerSchema);
-export const Product = model<IProduct>('SupplierProduct', ProductSchema);
-export const InventoryLog = model<IInventoryLog>('SupplierInventoryLog', InventoryLogSchema);
-export const Order = model<IOrder>('SupplierOrder', OrderSchema);
-export const Review = model<IReview>('SupplierReview', ReviewSchema);
-export const DailyAnalytics = model<IDailyAnalytics>('SupplierDailyAnalytics', DailyAnalyticsSchema);
+// Export models (reuse if already compiled)
+export const Seller = (models.Supplier as mongoose.Model<ISeller>) || model<ISeller>('Supplier', SellerSchema);
+export const Product = (models.SupplierProduct as mongoose.Model<IProduct>) || model<IProduct>('SupplierProduct', ProductSchema);
+export const InventoryLog = (models.SupplierInventoryLog as mongoose.Model<IInventoryLog>) || model<IInventoryLog>('SupplierInventoryLog', InventoryLogSchema);
+export const Order = (models.SupplierOrder as mongoose.Model<IOrder>) || model<IOrder>('SupplierOrder', OrderSchema);
+export const Review = (models.SupplierReview as mongoose.Model<IReview>) || model<IReview>('SupplierReview', ReviewSchema);
+export const DailyAnalytics = (models.SupplierDailyAnalytics as mongoose.Model<IDailyAnalytics>) || model<IDailyAnalytics>('SupplierDailyAnalytics', DailyAnalyticsSchema);

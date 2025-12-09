@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Product } from '@/lib/models/product';
-import { Seller } from '@/lib/models/seller';
+import { Product, Seller, Order } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
-
-function getSellerId(request: NextRequest): string | null {
-  return request.headers.get('x-seller-id') || null;
-}
+import { requireAuth } from '@/lib/supplier-auth-middleware';
 
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
     
-    const sellerId = getSellerId(request);
-    if (!sellerId) {
-      return NextResponse.json({ error: 'Seller ID is required' }, { status: 401 });
-    }
+    // Authenticate supplier
+    const auth = await requireAuth(request);
+    const sellerId = auth.sellerId;
 
     console.log('🏆 Fetching top products:', { sellerId });
 
@@ -23,17 +18,27 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Seller not found' }, { status: 404 });
     }
 
-    const products = await Product.find({ sellerId, status: 'active' })
-      .sort({ 'salesData.totalSold': -1 })
-      .limit(10)
-      .select('name salesData.totalSold salesData.totalRevenue')
-      .lean();
+    // Get top products based on actual order data
+    const topProducts = await Order.aggregate([
+      { $match: { sellerId, paymentStatus: 'paid' } },
+      { $unwind: '$items' },
+      { 
+        $group: {
+          _id: '$items.productId',
+          name: { $first: '$items.name' },
+          totalSold: { $sum: '$items.quantity' },
+          totalRevenue: { $sum: '$items.total' }
+        }
+      },
+      { $sort: { totalRevenue: -1 } },
+      { $limit: 10 }
+    ]);
 
-    const formattedProducts = products.map(product => ({
+    const formattedProducts = topProducts.map(product => ({
       _id: product._id,
       name: product.name,
-      quantity: product.salesData.totalSold,
-      revenue: product.salesData.totalRevenue
+      quantity: product.totalSold,
+      revenue: product.totalRevenue
     }));
 
     return NextResponse.json({ products: formattedProducts });

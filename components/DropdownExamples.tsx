@@ -83,7 +83,6 @@ export const FilterDropdownExample = () => {
           <span>▾</span>
         </button>
       }
-      label="Date Range"
       options={dateOptions}
       selectedValue={selectedDate}
       onSelect={setSelectedDate}

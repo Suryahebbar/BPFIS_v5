@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Order } from '@/lib/models/order';
-import { Product } from '@/lib/models/product';
+import { Order, Product, DailyAnalytics } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
+import { requireAuth } from '@/lib/supplier-auth-middleware';
+import mongoose from 'mongoose';
 
-export async function GET(request: Request) {
+export async function GET(request: NextRequest) {
   try {
+    await connectDB();
+    
+    // Authenticate supplier
+    const auth = await requireAuth(request);
+    const sellerId = auth.sellerId;
+
     const { searchParams } = new URL(request.url);
     const range = searchParams.get('range') || '7d';
-    const sellerId = request.headers.get('x-seller-id');
-    
-    if (!sellerId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    await connectDB();
 
     // Calculate date range
     const now = new Date();
@@ -31,100 +31,142 @@ export async function GET(request: Request) {
       case '1y':
         startDate.setFullYear(now.getFullYear() - 1);
         break;
+      default:
+        startDate.setDate(now.getDate() - 7);
     }
 
-    // Fetch real data from database
-    const [orders, products] = await Promise.all([
-      Order.find({ 
-        ...(sellerId !== 'temp-seller-id' && { sellerId }),
-        createdAt: { $gte: startDate, $lte: now },
-        'paymentDetails.status': 'paid'
-      }).lean(),
-      Product.find({ 
-        ...(sellerId !== 'temp-seller-id' && { sellerId })
-      }).lean()
+    // Get analytics data
+    const sellerObjectId = new mongoose.Types.ObjectId(sellerId);
+    const [
+      revenueData,
+      ordersData,
+      topProductsAggregation,
+      categoryData,
+      dailyStats,
+      activeProductsCount
+    ] = await Promise.all([
+      // Total revenue
+      Order.aggregate([
+        { $match: { sellerId: sellerObjectId, paymentStatus: 'paid', createdAt: { $gte: startDate } } },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+      ]),
+      // Total orders
+      Order.aggregate([
+        { $match: { sellerId: sellerObjectId, createdAt: { $gte: startDate } } },
+        { $count: "total" }
+      ]),
+      // Top products
+      Order.aggregate([
+        { $match: { sellerId: sellerObjectId, paymentStatus: 'paid', createdAt: { $gte: startDate } } },
+        { $unwind: '$items' },
+        {
+          $group: {
+            _id: '$items.productId',
+            name: { $first: '$items.name' },
+            quantity: { $sum: '$items.quantity' },
+            revenue: { $sum: '$items.total' }
+          }
+        },
+        { $sort: { revenue: -1 } },
+        { $limit: 10 }
+      ]),
+      // Category breakdown
+      Order.aggregate([
+        { $match: { sellerId: sellerObjectId, paymentStatus: 'paid', createdAt: { $gte: startDate } } },
+        { $unwind: '$items' },
+        {
+          $lookup: {
+            from: 'supplierproducts',
+            localField: 'items.productId',
+            foreignField: '_id',
+            as: 'product'
+          }
+        },
+        { $unwind: '$product' },
+        {
+          $group: {
+            _id: '$product.category',
+            revenue: { $sum: '$items.total' },
+            orders: { $sum: 1 }
+          }
+        }
+      ]),
+      // Daily analytics
+      DailyAnalytics.aggregate([
+        { $match: { sellerId: sellerObjectId, date: { $gte: startDate } } },
+        { $sort: { date: -1 } }
+      ]),
+      Product.countDocuments({ sellerId: sellerObjectId, status: 'active' } as any)
     ]);
 
-    // Calculate overview metrics
-    const totalRevenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
-    const totalOrders = orders.length;
-    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-    const activeProducts = products.filter(p => p.status === 'active').length;
+    const totalRevenue = revenueData[0]?.total || 0;
+    const totalOrders = ordersData[0]?.total || 0;
 
-    // Generate sales chart data
-    const salesChart = [];
-    for (let i = 0; i < (range === '7d' ? 7 : range === '30d' ? 30 : range === '90d' ? 90 : 365); i++) {
-      const date = new Date(startDate);
-      date.setDate(date.getDate() + i);
-      const dayStart = new Date(date.setHours(0, 0, 0, 0));
-      const dayEnd = new Date(date.setHours(23, 59, 59, 999));
-      
-      const dayOrders = orders.filter(order => 
-        order.createdAt >= dayStart && order.createdAt <= dayEnd
-      );
-      
-      salesChart.push({
-        date: date.toISOString().split('T')[0],
-        revenue: dayOrders.reduce((sum, order) => sum + (order.totalAmount || 0), 0),
-        orders: dayOrders.length
-      });
-    }
+    const topProducts = topProductsAggregation.map((product) => ({
+      productId: product._id?.toString() ?? '',
+      name: product.name,
+      quantity: product.quantity,
+      revenue: product.revenue
+    }));
 
-    // Calculate top products
-    const productRevenue = new Map();
-    orders.forEach(order => {
-      order.items?.forEach((item: any) => {
-        const current = productRevenue.get(item.productId) || { quantity: 0, revenue: 0 };
-        productRevenue.set(item.productId, {
-          quantity: current.quantity + (item.quantity || 0),
-          revenue: current.revenue + (item.price * item.quantity || 0)
-        });
-      });
-    });
+    // Format category data
+    const totalCategoryRevenue = categoryData.reduce((sum: number, cat: any) => sum + (cat.revenue || 0), 0);
+    const categoryBreakdown = categoryData.map((cat: any) => ({
+      category: cat._id || 'other',
+      revenue: cat.revenue || 0,
+      orders: cat.orders || 0,
+      percentage: totalCategoryRevenue > 0 ? parseFloat(((cat.revenue || 0) / totalCategoryRevenue * 100).toFixed(2)) : 0
+    }));
 
-    const topProducts = Array.from(productRevenue.entries())
-      .map(([productId, data]) => ({
-        productId,
-        name: products.find(p => p._id.toString() === productId)?.name || 'Unknown Product',
-        quantity: data.quantity,
-        revenue: data.revenue
+    // Calculate growth metrics
+    const previousStartDate = new Date(startDate);
+    previousStartDate.setDate(previousStartDate.getDate() - (range === '7d' ? 7 : range === '30d' ? 30 : 90));
+
+    const [previousRevenue, previousOrders] = await Promise.all([
+      Order.aggregate([
+        { $match: { sellerId: sellerObjectId, paymentStatus: 'paid', createdAt: { $gte: previousStartDate, $lt: startDate } } },
+        { $group: { _id: null, total: { $sum: '$totalAmount' } } }
+      ]),
+      Order.aggregate([
+        { $match: { sellerId: sellerObjectId, createdAt: { $gte: previousStartDate, $lt: startDate } } },
+        { $count: "total" }
+      ])
+    ]);
+
+    const previousRevenueTotal = previousRevenue[0]?.total || 0;
+    const previousOrdersCount = previousOrders[0]?.total || 0;
+    const revenueGrowth = previousRevenueTotal > 0 
+      ? ((totalRevenue - previousRevenueTotal) / previousRevenueTotal * 100).toFixed(1)
+      : '0';
+    
+    const orderGrowth = previousOrdersCount > 0
+      ? ((totalOrders - previousOrdersCount) / previousOrdersCount * 100).toFixed(1)
+      : '0';
+
+    const overview = {
+      totalRevenue,
+      totalOrders,
+      avgOrderValue: totalOrders > 0 ? totalRevenue / totalOrders : 0,
+      activeProducts: activeProductsCount || 0,
+      revenueGrowth: parseFloat(revenueGrowth),
+      orderGrowth: parseFloat(orderGrowth)
+    };
+
+    const salesChart = dailyStats
+      .map((day: any) => ({
+        date: day.date,
+        revenue: day.revenue ?? 0,
+        orders: day.orders ?? 0
       }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5);
-
-    // Calculate category breakdown
-    const categoryRevenue = new Map();
-    orders.forEach(order => {
-      order.items?.forEach((item: any) => {
-        const product = products.find(p => p._id.toString() === item.productId);
-        const category = product?.category || 'other';
-        const current = categoryRevenue.get(category) || { revenue: 0, orders: 0 };
-        categoryRevenue.set(category, {
-          revenue: current.revenue + (item.price * item.quantity || 0),
-          orders: current.orders + 1
-        });
-      });
-    });
-
-    const totalCategoryRevenue = Array.from(categoryRevenue.values()).reduce((sum, cat) => sum + cat.revenue, 0);
-    const categoryBreakdown = Array.from(categoryRevenue.entries()).map(([category, data]) => ({
-      category,
-      revenue: data.revenue,
-      orders: data.orders,
-      percentage: totalCategoryRevenue > 0 ? Math.round((data.revenue / totalCategoryRevenue) * 100) : 0
-    })).sort((a, b) => b.revenue - a.revenue);
+      .sort((a: { date: Date }, b: { date: Date }) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     return NextResponse.json({
-      overview: {
-        totalRevenue,
-        totalOrders,
-        avgOrderValue,
-        activeProducts
-      },
+      overview,
       salesChart,
       topProducts,
       categoryBreakdown
     });
+
   } catch (error) {
     console.error('Error fetching analytics:', error);
     return NextResponse.json({ error: 'Failed to fetch analytics' }, { status: 500 });

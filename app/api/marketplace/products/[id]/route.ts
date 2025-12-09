@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Product } from '@/lib/models/product';
+import { Product as SupplierProduct } from '@/lib/models/supplier';
 import { Seller } from '@/lib/models/seller';
 import { connectDB } from '@/lib/db';
 
@@ -13,7 +13,7 @@ export async function GET(
     await connectDB();
 
     // Find product with seller information
-    const product = await Product.findById(id)
+    const product = await SupplierProduct.findById(id)
       .populate('sellerId', 'companyName email phone')
       .lean();
 
@@ -27,25 +27,35 @@ export async function GET(
       name: product.name,
       description: product.description,
       price: product.price,
-      images: product.images || [],
+      images: Array.isArray(product.images) ? product.images.map((img: any) => ({
+        url: img.url || '',
+        alt: img.alt || product.name
+      })) : [],
       category: product.category,
       seller: {
-        _id: product.sellerId?._id,
-        companyName: product.sellerId?.companyName || 'Unknown Seller',
-        email: product.sellerId?.email,
-        phone: product.sellerId?.phone
+        _id: product.sellerId?._id || product.sellerId,
+        companyName: (product.sellerId as any)?.companyName || 'Unknown Seller',
+        email: (product.sellerId as any)?.email,
+        phone: (product.sellerId as any)?.phone
       },
-      stock: product.inventory?.currentStock || 0,
-      rating: product.rating || 0,
-      reviews: product.reviewCount || 0,
+      stock: product.stockQuantity || 0,
+      rating: 0, // Not available in the supplier model
+      reviews: 0, // Not available in the supplier model
       createdAt: product.createdAt,
-      tags: product.tags || [],
+      tags: Array.isArray(product.tags) ? product.tags : [],
       specifications: product.specifications || {},
-      shippingInfo: product.shippingInfo || {
+      shippingInfo: product.dimensions ? {
+        weight: product.dimensions.weight || 1,
+        dimensions: {
+          length: product.dimensions.length || 10,
+          width: product.dimensions.width || 10,
+          height: product.dimensions.height || 10
+        }
+      } : {
         weight: 1,
         dimensions: { length: 10, width: 10, height: 10 }
       },
-      featured: product.featured || false
+      status: product.status || 'draft'
     };
 
     return NextResponse.json({

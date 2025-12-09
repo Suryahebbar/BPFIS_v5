@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface SetupFormData {
   gstNumber: string;
@@ -52,9 +52,7 @@ export default function ProfileSetupPage() {
         return;
       }
 
-      const response = await fetch('/api/seller', {
-        headers: getAuthHeaders()
-      });
+      const response = await fetch('/api/seller', withSupplierAuth());
 
       const data = await response.json();
       
@@ -117,17 +115,16 @@ export default function ProfileSetupPage() {
     }
 
     try {
-      const response = await fetch('/api/seller', {
+      const response = await fetch('/api/seller', withSupplierAuth({
         method: 'PUT',
         headers: {
-          'Content-Type': 'application/json',
-          ...getAuthHeaders()
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           ...formData,
           isFirstTimeSetup: true
         })
-      });
+      }));
 
       const data = await response.json();
 

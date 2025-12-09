@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { MarketplaceOrder } from '@/lib/models/marketplace-order';
 import { Product } from '@/lib/models/product';
 import { Seller } from '@/lib/models/seller';
+import { sendSellerNewOrderEmail } from '@/lib/sellerNotifications';
 import { connectDB } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
 
     await order.save();
 
-    // Group items by seller for potential seller notifications
+    // Group items by seller for notifications
     const itemsBySeller = orderItems.reduce((acc: Record<string, any[]>, item) => {
       if (!acc[item.sellerId]) {
         acc[item.sellerId] = [];
@@ -99,8 +100,34 @@ export async function POST(request: Request) {
       return acc;
     }, {} as Record<string, any[]>);
 
-    // TODO: Send notifications to sellers about new orders
-    // This could be implemented with email/SMS notifications
+    // Send email notifications to sellers about new orders, respecting their settings
+    for (const [sellerId, sellerItems] of Object.entries(itemsBySeller)) {
+      const seller = await Seller.findById(sellerId).select('settings');
+      if (!seller) continue;
+
+      const settings = (seller as any).settings || {};
+      if (!settings.orderNotifications || !settings.emailNotifications) {
+        console.log('Skipping seller order notification due to settings', {
+          sellerId,
+          orderNotifications: settings.orderNotifications,
+          emailNotifications: settings.emailNotifications,
+        });
+        continue;
+      }
+
+      await sendSellerNewOrderEmail(
+        sellerId,
+        orderId,
+        customerInfo.name,
+        sellerItems.map((it: any) => ({
+          name: it.name,
+          quantity: it.quantity,
+          price: it.price,
+          subtotal: it.subtotal,
+        })),
+        total,
+      );
+    }
 
     return NextResponse.json({
       message: 'Order placed successfully',

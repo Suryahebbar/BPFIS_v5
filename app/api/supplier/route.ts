@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       companyName,
       email,
       phone,
-      password: hashedPassword,
+      passwordHash: hashedPassword,
       address,
       gstNumber,
       verificationStatus: 'pending',

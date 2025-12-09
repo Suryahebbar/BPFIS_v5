@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 
 interface Product {
@@ -23,53 +23,9 @@ interface Product {
 export default function MarketplacePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-
-  // Mock products data
-  const products: Product[] = [
-    {
-      _id: '1',
-      name: 'Organic Wheat Seeds',
-      price: 2500,
-      originalPrice: 3000,
-      category: 'seeds',
-      images: ['/api/placeholder/300/300'],
-      rating: 4.5,
-      reviewCount: 23,
-      seller: {
-        companyName: 'AgriTech Solutions',
-        verificationStatus: 'verified'
-      },
-      discount: 17,
-      featured: true
-    },
-    {
-      _id: '2',
-      name: 'Premium Fertilizer NPK 20-20-20',
-      price: 850,
-      category: 'fertilizers',
-      images: ['/api/placeholder/300/300'],
-      rating: 4.2,
-      reviewCount: 15,
-      seller: {
-        companyName: 'GreenGrow Supplies',
-        verificationStatus: 'verified'
-      }
-    },
-    {
-      _id: '3',
-      name: 'Drip Irrigation Kit',
-      price: 12000,
-      category: 'irrigation',
-      images: ['/api/placeholder/300/300'],
-      rating: 4.8,
-      reviewCount: 31,
-      seller: {
-        companyName: 'Irrigation Pro',
-        verificationStatus: 'verified'
-      },
-      featured: true
-    }
-  ];
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string>('');
 
   const categories = [
     { id: 'all', name: 'All Products' },
@@ -85,6 +41,40 @@ export default function MarketplacePage() {
     const matchesCategory = selectedCategory === 'all' || product.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        setError('');
+
+        const params = new URLSearchParams();
+        if (selectedCategory && selectedCategory !== 'all') {
+          params.set('category', selectedCategory);
+        }
+        if (searchTerm) {
+          params.set('search', searchTerm);
+        }
+
+        const response = await fetch(`/api/marketplace/products?${params.toString()}`);
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error((data && data.error) || 'Failed to load products');
+        }
+
+        setProducts((data.products as Product[]) || []);
+      } catch (e) {
+        console.error('Error loading marketplace products:', e);
+        setError(e instanceof Error ? e.message : 'Failed to load products');
+        setProducts([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadProducts();
+  }, [selectedCategory, searchTerm]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -160,8 +150,15 @@ export default function MarketplacePage() {
           </div>
         </div>
 
+        {/* Error */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800 text-sm">{error}</p>
+          </div>
+        )}
+
         {/* Featured Products */}
-        {selectedCategory === 'all' && (
+        {!loading && selectedCategory === 'all' && (
           <div className="mb-12">
             <h2 className="text-2xl font-bold text-gray-900 mb-6">Featured Products</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -219,6 +216,13 @@ export default function MarketplacePage() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* Loading state */}
+        {loading && (
+          <div className="py-12 flex justify-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#1f3b2c]"></div>
           </div>
         )}
 

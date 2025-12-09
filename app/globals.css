@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 :root {
-  /* Beige background and dark text to match AgriLink theme */
+  /* Beige background and darker text for better readability */
   --background: #f7f0de;
-  --foreground: #1f2933;
+  --foreground: #0f1111;
 
   /* Primary Brand Colors */
   --primary-teal: #1A9B9A;
@@ -22,10 +22,10 @@
   --gray-200: #F3F3F3;
   --gray-300: #EAEDED;
   --gray-400: #D5D9D9;
-  --gray-500: #AAB7B8;
-  --gray-600: #545B64;
-  --gray-700: #37475A;
-  --gray-900: #0F1111;
+  --gray-500: #6b7280;
+  --gray-600: #111827; /* darker gray for main UI text */
+  --gray-700: #020617;
+  --gray-900: #000000;
   --black: #000000;
 
   /* Semantic Colors */

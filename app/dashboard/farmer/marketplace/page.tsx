@@ -14,7 +14,7 @@ interface Product {
   _id: string;
   name: string;
   price: number;
-  images: string[];
+  images: any[]; // API returns array of image objects or URLs
   seller: {
     companyName: string;
   };
@@ -29,73 +29,37 @@ export default function FarmerMarketplacePage() {
   const category = searchParams.get('category');
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    // Mock data - replace with actual API call
-    const mockProducts: Product[] = [
-      {
-        _id: '1',
-        name: 'Premium Organic Seeds - Tomato',
-        price: 299,
-        images: [],
-        seller: { companyName: 'AgriSeeds India' },
-        category: 'seeds',
-        stock: 50,
-        rating: 4.5,
-        reviewCount: 128
-      },
-      {
-        _id: '2',
-        name: 'NPK Fertilizer 20-20-20',
-        price: 450,
-        images: [],
-        seller: { companyName: 'GreenGrow Fertilizers' },
-        category: 'fertilizers',
-        stock: 25,
-        rating: 4.3,
-        reviewCount: 89
-      },
-      {
-        _id: '3',
-        name: 'Drip Irrigation Kit',
-        price: 2500,
-        images: [],
-        seller: { companyName: 'Irrigation Solutions' },
-        category: 'irrigation',
-        stock: 15,
-        rating: 4.7,
-        reviewCount: 56
-      },
-      {
-        _id: '4',
-        name: 'Garden Tool Set - 5 Pieces',
-        price: 899,
-        images: [],
-        seller: { companyName: 'FarmTools Co.' },
-        category: 'tools',
-        stock: 30,
-        rating: 4.2,
-        reviewCount: 203
-      }
-    ];
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        setError('');
 
-    setTimeout(() => {
-      let filteredProducts = mockProducts;
-      
-      if (category) {
-        filteredProducts = mockProducts.filter(p => p.category === category);
+        const params = new URLSearchParams();
+        if (category) params.set('category', category);
+        if (searchTerm) params.set('search', searchTerm);
+
+        const response = await fetch(`/api/marketplace/products?${params.toString()}`);
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error((data && data.error) || 'Failed to load products');
+        }
+
+        setProducts((data.products as Product[]) || []);
+      } catch (e) {
+        console.error('Error loading marketplace products:', e);
+        setError(e instanceof Error ? e.message : 'Failed to load products');
+        setProducts([]);
+      } finally {
+        setLoading(false);
       }
-      
-      if (searchTerm) {
-        filteredProducts = filteredProducts.filter(p => 
-          p.name.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-      
-      setProducts(filteredProducts);
-      setLoading(false);
-    }, 500);
+    };
+
+    void loadProducts();
   }, [category, searchTerm]);
 
   const categories = [

@@ -3,10 +3,9 @@ import { connectDB } from '../../../../lib/db';
 import { FarmerProfile } from '../../../../lib/models/FarmerProfile';
 import { processDocument, getDocumentResult } from '../../../../lib/services/simple-extract.service';
 import { getUserFromRequest } from '../../../../lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import Document from '../../../../lib/models/Document';
+import { uploadFile } from '@/lib/cloudinary';
 
 export const maxDuration = 60;
 export const dynamic = 'force-dynamic';
@@ -42,10 +41,6 @@ export async function POST(request: Request) {
 
     await connectDB();
 
-    // Create upload directory if needed
-    const uploadDir = path.join(process.cwd(), 'uploads');
-    await mkdir(uploadDir, { recursive: true });
-
     let extractedData: any = { farmer: {}, land: {} };
     let rtcText = '';
     let aadharText = '';
@@ -53,18 +48,24 @@ export async function POST(request: Request) {
     // Process RTC file
     if (rtcFile) {
       const rtcBuffer = Buffer.from(await rtcFile.arrayBuffer());
-      const rtcFilename = `rtc-${uuidv4()}.pdf`;
-      const rtcPath = path.join(uploadDir, rtcFilename);
-      await writeFile(rtcPath, rtcBuffer);
+      
+      // Upload to Cloudinary
+      const uploadResult = await uploadFile(rtcBuffer, 'kyc/rtc');
+      
+      if (!uploadResult.success || !uploadResult.data) {
+        console.error('Failed to upload RTC document to Cloudinary:', uploadResult.error);
+        throw new Error('Failed to upload RTC document to Cloudinary');
+      }
 
-      // Create document record
+      // Create document record with Cloudinary URL
       const rtcDoc = await Document.create({
         owner: userId,
         type: 'rtc',
         originalName: rtcFile.name,
         mimeType: rtcFile.type,
         size: rtcFile.size,
-        path: rtcPath,
+        path: uploadResult.data.url,
+        cloudinaryId: uploadResult.data.publicId,
       });
 
       // Process document using simple extraction
@@ -98,18 +99,24 @@ export async function POST(request: Request) {
     // Process Aadhaar file
     if (aadharFile) {
       const aadharBuffer = Buffer.from(await aadharFile.arrayBuffer());
-      const aadharFilename = `aadhaar-${uuidv4()}.pdf`;
-      const aadharPath = path.join(uploadDir, aadharFilename);
-      await writeFile(aadharPath, aadharBuffer);
+      
+      // Upload to Cloudinary
+      const uploadResult = await uploadFile(aadharBuffer, 'kyc/aadhaar');
+      
+      if (!uploadResult.success || !uploadResult.data) {
+        console.error('Failed to upload Aadhaar document to Cloudinary:', uploadResult.error);
+        throw new Error('Failed to upload Aadhaar document to Cloudinary');
+      }
 
-      // Create document record
+      // Create document record with Cloudinary URL
       const aadharDoc = await Document.create({
         owner: userId,
         type: 'aadhaar',
         originalName: aadharFile.name,
         mimeType: aadharFile.type,
         size: aadharFile.size,
-        path: aadharPath,
+        path: uploadResult.data.url,
+        cloudinaryId: uploadResult.data.publicId,
       });
 
       // Process document using simple extraction

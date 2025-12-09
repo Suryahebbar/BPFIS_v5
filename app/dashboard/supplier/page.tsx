@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { getAuthHeaders } from '@/lib/supplier-auth';
+import { withSupplierAuth } from '@/lib/supplier-auth';
 
 interface DashboardStats {
   totalRevenue: number;
@@ -44,6 +44,8 @@ export default function SupplierDashboard() {
   const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
   const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [error, setError] = useState('');
+  const [taxInclusive, setTaxInclusive] = useState<boolean>(true);
+  const [taxRate, setTaxRate] = useState<number>(0.18);
 
   useEffect(() => {
     loadDashboardData();
@@ -57,9 +59,7 @@ export default function SupplierDashboard() {
       const localProfile = localStorage.getItem('sellerProfile');
       if (!localProfile) {
         // No local profile found, check API
-        const profileResponse = await fetch('/api/seller', {
-          headers: getAuthHeaders()
-        });
+        const profileResponse = await fetch('/api/seller', withSupplierAuth());
 
         if (profileResponse.ok) {
           const profileData = await profileResponse.json();
@@ -72,21 +72,34 @@ export default function SupplierDashboard() {
         }
       }
 
+      // Load supplier settings for tax display
+      try {
+        const settingsRes = await fetch('/api/supplier/settings', withSupplierAuth());
+        if (settingsRes.ok) {
+          const data = await settingsRes.json();
+          if (data.settings) {
+            setTaxInclusive(!!data.settings.taxInclusive);
+            setTaxRate(typeof data.settings.taxRate === 'number' ? data.settings.taxRate : 0.18);
+          }
+        }
+      } catch (e) {
+        console.error('Error loading supplier settings for dashboard:', e);
+      }
+
       // Load dashboard data
       const [statsRes, ordersRes, lowStockRes, topProductsRes] = await Promise.all([
-        fetch('/api/supplier/dashboard/stats', {
-          headers: getAuthHeaders()
-        }),
-        fetch('/api/supplier/dashboard/recent-orders', {
-          headers: getAuthHeaders()
-        }),
-        fetch('/api/supplier/dashboard/low-stock', {
-          headers: getAuthHeaders()
-        }),
-        fetch('/api/supplier/dashboard/top-products', {
-          headers: getAuthHeaders()
-        })
+        fetch('/api/supplier/dashboard/stats', withSupplierAuth()),
+        fetch('/api/supplier/dashboard/recent-orders', withSupplierAuth()),
+        fetch('/api/supplier/dashboard/low-stock', withSupplierAuth()),
+        fetch('/api/supplier/dashboard/top-products', withSupplierAuth())
       ]);
+
+      // Handle stats response with proper error handling
+      if (statsRes.status === 401) {
+        // Redirect to login if unauthorized
+        window.location.href = '/dashboard/supplier/login';
+        return;
+      }
 
       // Handle stats response
       if (statsRes.ok) {
@@ -148,6 +161,11 @@ export default function SupplierDashboard() {
     }
   };
 
+  const applyTax = (base: number) => {
+    const value = taxInclusive ? base * (1 + taxRate) : base;
+    return value;
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'new': return 'bg-blue-100 text-blue-800';
@@ -190,7 +208,7 @@ export default function SupplierDashboard() {
             <div>
               <p className="metric-label">Total Revenue</p>
               <p className="metric-value">
-                ₹{stats?.totalRevenue.toLocaleString() || '0'}
+                ₹{stats ? applyTax(stats.totalRevenue).toLocaleString() : '0'}
               </p>
               {stats?.revenueGrowth && (
                 <p className={`metric-change ${stats.revenueGrowth > 0 ? 'positive' : 'negative'}`}>
@@ -252,7 +270,7 @@ export default function SupplierDashboard() {
             <div>
               <p className="metric-label">Avg Order Value</p>
               <p className="metric-value">
-                ₹{stats?.avgOrderValue.toFixed(2) || '0.00'}
+                ₹{stats ? applyTax(stats.avgOrderValue).toFixed(2) : '0.00'}
               </p>
               <p className="text-sm text-[var(--gray-600)] mt-1">Per order</p>
             </div>
@@ -295,7 +313,7 @@ export default function SupplierDashboard() {
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="font-semibold text-[var(--navy-blue)]">₹{order.totalAmount}</p>
+                      <p className="font-semibold text-[var(--navy-blue)]">₹{applyTax(order.totalAmount)}</p>
                       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(order.status)}`}>
                         {order.status}
                       </span>
@@ -377,7 +395,7 @@ export default function SupplierDashboard() {
                 <p className="font-medium text-[var(--navy-blue)] text-sm mb-1">{product.name}</p>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-[var(--gray-600)]">{product.quantity} sold</span>
-                  <span className="font-semibold text-[var(--navy-blue)]">₹{product.revenue}</span>
+                  <span className="font-semibold text-[var(--navy-blue)]">₹{applyTax(product.revenue)}</span>
                 </div>
               </div>
             ))}

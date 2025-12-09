@@ -1,96 +1,135 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Order } from '@/lib/models/order';
+import { Order, Seller } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
+import { requireAuth } from '@/lib/supplier-auth-middleware';
 
-export async function GET(request: Request) {
+// GET /api/supplier/orders - Get seller's orders
+export async function GET(request: NextRequest) {
   try {
+    await connectDB();
+    
+    // Authenticate supplier
+    const auth = await requireAuth(request);
+    const sellerId = auth.sellerId;
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status') || '';
     const search = searchParams.get('search') || '';
-    const sellerId = request.headers.get('x-seller-id');
-    
-    if (!sellerId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
 
-    await connectDB();
-
-    // Build query - handle temp seller ID for development
-    const query: any = sellerId === 'temp-seller-id' 
-      ? {} // For development, fetch all orders (or use email-based lookup)
-      : { sellerId };
+    // Build query
+    const query: any = { sellerId };
 
     if (status && status !== 'all') {
-      query.status = status;
+      query.orderStatus = status;
     }
+    
     if (search) {
       query.$or = [
-        { orderId: { $regex: search, $options: 'i' } },
-        { 'customerDetails.name': { $regex: search, $options: 'i' } },
-        { 'customerDetails.email': { $regex: search, $options: 'i' } }
+        { orderNumber: { $regex: search, $options: 'i' } },
+        { 'customer.name': { $regex: search, $options: 'i' } },
+        { 'customer.phone': { $regex: search, $options: 'i' } }
       ];
     }
 
-    // Fetch orders from database
-    const orders = await Order.find(query)
-      .sort({ createdAt: -1 })
-      .limit(50)
-      .lean();
-
-    const total = await Order.countDocuments(query);
+    // Get orders with pagination
+    const skip = (page - 1) * limit;
+    
+    const [orders, totalCount] = await Promise.all([
+      Order.find(query)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('items.productId', 'name sku images')
+        .lean(),
+      Order.countDocuments(query)
+    ]);
 
     return NextResponse.json({
       orders,
-      total,
-      page: 1,
-      totalPages: Math.ceil(total / 50)
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        pages: Math.ceil(totalCount / limit)
+      }
     });
+
   } catch (error) {
     console.error('Error fetching orders:', error);
-    return NextResponse.json({ error: 'Failed to fetch orders' }, { status: 500 });
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-export async function PUT(request: Request) {
+// POST /api/supplier/orders - Create new order (for manual order creation)
+export async function POST(request: NextRequest) {
   try {
-    const sellerId = request.headers.get('x-seller-id');
+    await connectDB();
     
-    if (!sellerId) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    // Authenticate supplier
+    const auth = await requireAuth(request);
+    const sellerId = auth.sellerId;
 
     const body = await request.json();
-    const { orderId, status } = body;
+    const {
+      customer,
+      items,
+      notes,
+      shippingDetails
+    } = body;
 
-    await connectDB();
-
-    // Find and update the order
-    const order = await Order.findOneAndUpdate(
-      { _id: orderId, sellerId },
-      { 
-        status,
-        updatedAt: new Date(),
-        $push: {
-          statusHistory: {
-            status,
-            timestamp: new Date(),
-            updatedBy: 'seller'
-          }
-        }
-      },
-      { new: true }
-    );
-
-    if (!order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 });
+    // Validate required fields
+    if (!customer || !items || items.length === 0) {
+      return NextResponse.json(
+        { error: 'Customer and items are required' },
+        { status: 400 }
+      );
     }
 
-    return NextResponse.json({
-      message: 'Order status updated successfully',
-      order
+    // Generate unique order number
+    const orderNumber = 'ORD-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+
+    // Calculate total amount
+    const totalAmount = items.reduce((sum: number, item: any) => sum + (item.price * item.quantity), 0);
+
+    // Read seller settings to determine initial order status
+    const seller = await Seller.findById(sellerId).select('settings');
+    const autoConfirm = (seller as any)?.settings?.autoConfirmOrders === true;
+
+    // Create new order
+    const order = new Order({
+      orderNumber,
+      sellerId,
+      customer,
+      items: items.map((item: any) => ({
+        productId: item.productId,
+        name: item.name,
+        sku: item.sku,
+        quantity: item.quantity,
+        price: item.price,
+        total: item.price * item.quantity
+      })),
+      totalAmount,
+      paymentStatus: 'pending',
+      orderStatus: autoConfirm ? 'processing' : 'new',
+      shippingDetails,
+      notes
     });
-  } catch (error) {
-    console.error('Error updating order:', error);
-    return NextResponse.json({ error: 'Failed to update order' }, { status: 500 });
+
+    await order.save();
+
+    console.log('Order created:', { id: order._id, orderNumber });
+
+    return NextResponse.json({
+      message: 'Order created successfully',
+      order
+    }, { status: 201 });
+
+  } catch (error: any) {
+    console.error('Error creating order:', error);
+    return NextResponse.json({ 
+      error: error.message || 'Internal server error'
+    }, { status: 500 });
   }
 }
