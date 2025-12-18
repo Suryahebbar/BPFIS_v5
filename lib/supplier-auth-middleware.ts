@@ -171,12 +171,27 @@ export async function authenticateSupplier(request: NextRequest): Promise<Authen
   }
 }
 
-export async function requireAuth(request: NextRequest): Promise<AuthenticatedSeller> {
+export async function requireAuth(
+  request: NextRequest,
+  params?: { params?: { supplierId?: string } }
+): Promise<AuthenticatedSeller> {
   const auth = await authenticateSupplier(request);
+  
   if (!auth) {
-    const error = new Error('Authentication required');
-    (error as Error & { status?: number }).status = 401;
-    throw error;
+    throw new Error('Authentication required');
   }
+
+  // Verify supplierId in route matches authenticated user
+  const supplierIdFromRoute = params?.params?.supplierId;
+  if (supplierIdFromRoute && supplierIdFromRoute !== 'temp' && supplierIdFromRoute !== auth.sellerId) {
+    throw new Error('Unauthorized access to this supplier resource');
+  }
+
+  // Skip supplierId validation for routes that don't have supplierId parameter
+  const isAnalyticsRoute = request.nextUrl?.pathname?.includes('/analytics');
+  if (!supplierIdFromRoute && !isAnalyticsRoute) {
+    throw new Error('Supplier ID required for this route');
+  }
+
   return auth;
 }

@@ -111,7 +111,7 @@ export default function SupplierRegisterPage() {
       if (response.ok) {
         setSuccess('Account verified successfully! You can now login.');
         setTimeout(() => {
-          router.push('/dashboard/supplier/login');
+          router.push('/login');
         }, 2000);
       } else {
         setError(data.error || 'OTP verification failed');
@@ -361,7 +361,7 @@ export default function SupplierRegisterPage() {
               </div>
 
               <div className="text-center">
-                <Link href="/dashboard/supplier/login" className="text-sm text-[#1f3b2c] hover:underline">
+                <Link href="/login" className="text-sm text-[#1f3b2c] hover:underline">
                   Already have an account? Sign in
                 </Link>
               </div>

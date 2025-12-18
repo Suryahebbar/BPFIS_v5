@@ -23,6 +23,7 @@ export default function NewProductPage() {
   const [profile, setProfile] = useState<SellerProfile | null>(null);
   const [profileLoading, setProfileLoading] = useState(true);
   const [profileError, setProfileError] = useState('');
+  const [supplierId, setSupplierId] = useState<string>('');
   
   const [formData, setFormData] = useState({
     // Basic Information
@@ -138,7 +139,20 @@ export default function NewProductPage() {
         setProfileLoading(true);
         setProfileError('');
 
-        const response = await fetch('/api/supplier/profile', withSupplierAuth());
+        // Get supplierId if not already set
+        let currentSupplierId = supplierId;
+        if (!currentSupplierId) {
+          const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+          if (profileResponse.ok) {
+            const profileData = await profileResponse.json();
+            currentSupplierId = profileData.seller?._id || 'temp';
+            setSupplierId(currentSupplierId);
+          } else {
+            throw new Error('Failed to get supplier profile');
+          }
+        }
+
+        const response = await fetch(`/api/supplier/${currentSupplierId}/profile`, withSupplierAuth());
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
@@ -156,7 +170,7 @@ export default function NewProductPage() {
     };
 
     void loadProfile();
-  }, []);
+  }, [supplierId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -202,7 +216,8 @@ export default function NewProductPage() {
         formPayload.append(`images`, file);
       });
 
-      const response = await fetch('/api/supplier/products', withSupplierAuth({
+      const currentSupplierId = supplierId || 'temp';
+      const response = await fetch(`/api/supplier/${currentSupplierId}/products`, withSupplierAuth({
         method: 'POST',
         body: formPayload, // Send FormData instead of JSON
       }));

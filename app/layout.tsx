@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Agrilink",
   description: "Smart land integration agreements with blockchain verification for farmers",
+  icons: {
+    icon: '/favicon.ico',
+  },
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 };
 
 export default function RootLayout({
@@ -23,10 +31,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <body className="min-h-screen bg-background font-sans antialiased">
         {children}
       </body>
     </html>

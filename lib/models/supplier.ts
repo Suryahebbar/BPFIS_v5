@@ -383,11 +383,9 @@ const DailyAnalyticsSchema = new Schema<IDailyAnalytics>({
 });
 
 // Create indexes for better performance
-SellerSchema.index({ email: 1 });
 SellerSchema.index({ verificationStatus: 1 });
 
 ProductSchema.index({ sellerId: 1 });
-ProductSchema.index({ sku: 1 });
 ProductSchema.index({ category: 1 });
 ProductSchema.index({ status: 1 });
 ProductSchema.index({ name: 'text', description: 'text' });
@@ -398,7 +396,6 @@ InventoryLogSchema.index({ sellerId: 1, createdAt: -1 });
 OrderSchema.index({ sellerId: 1, createdAt: -1 });
 OrderSchema.index({ orderStatus: 1 });
 OrderSchema.index({ paymentStatus: 1 });
-OrderSchema.index({ orderNumber: 1 });
 
 ReviewSchema.index({ productId: 1 });
 ReviewSchema.index({ sellerId: 1 });

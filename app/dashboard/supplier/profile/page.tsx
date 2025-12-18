@@ -41,6 +41,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [supplierId, setSupplierId] = useState<string>('');
   
   const [formData, setFormData] = useState({
     companyName: '',
@@ -71,7 +72,28 @@ export default function ProfilePage() {
     try {
       setLoading(true);
       setError('');
-      const response = await fetch('/api/supplier/profile', withSupplierAuth());
+      
+      // Get supplierId if not already set
+      let currentSupplierId = supplierId;
+      if (!currentSupplierId) {
+        const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          // Try both supplier and seller keys
+          currentSupplierId = profileData.supplier?._id || profileData.seller?._id || '';
+          if (!currentSupplierId) {
+            console.error('No supplier ID found in profile:', profileData);
+            throw new Error('Supplier ID not found in profile');
+          }
+          setSupplierId(currentSupplierId);
+        } else {
+          const errorData = await profileResponse.json().catch(() => ({}));
+          console.error('Failed to get supplier profile:', errorData);
+          throw new Error(errorData.error || 'Failed to get supplier profile');
+        }
+      }
+      
+      const response = await fetch(`/api/supplier/${currentSupplierId}/profile`, withSupplierAuth());
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
@@ -80,20 +102,27 @@ export default function ProfilePage() {
 
       const data = await response.json();
 
-      setProfile(data.seller);
+      // Handle both seller and supplier keys
+      const sellerData = data.seller || data.supplier;
+      
+      if (!sellerData) {
+        throw new Error('Profile data not found in response');
+      }
+
+      setProfile(sellerData);
       setFormData({
-        companyName: data.seller?.companyName || '',
-        email: data.seller?.email || '',
-        phone: data.seller?.phone || '',
-        address: data.seller?.address || {
+        companyName: sellerData.companyName || '',
+        email: sellerData.email || '',
+        phone: sellerData.phone || '',
+        address: sellerData.address || {
           street: '',
           city: '',
           state: '',
           pincode: '',
           country: 'India'
         },
-        gstNumber: data.seller?.gstNumber || '',
-        businessDetails: data.seller?.businessDetails || {
+        gstNumber: sellerData.gstNumber || '',
+        businessDetails: sellerData.businessDetails || {
           businessType: '',
           yearsInOperation: '',
           productCategories: ''
@@ -139,6 +168,7 @@ export default function ProfilePage() {
 
     try {
       let response: Response;
+      const currentSupplierId = supplierId || 'temp';
 
       if (avatarFile) {
         const payload = new FormData();
@@ -149,13 +179,13 @@ export default function ProfilePage() {
         payload.append('businessDetails', JSON.stringify(formData.businessDetails));
         payload.append('avatar', avatarFile);
 
-        response = await fetch('/api/supplier/profile', withSupplierAuth({
-          method: 'PUT',
+        response = await fetch(`/api/supplier/${currentSupplierId}/profile`, withSupplierAuth({
+          method: 'PATCH',
           body: payload
         }));
       } else {
-        response = await fetch('/api/supplier/profile', withSupplierAuth({
-          method: 'PUT',
+        response = await fetch(`/api/supplier/${currentSupplierId}/profile`, withSupplierAuth({
+          method: 'PATCH',
           headers: {
             'Content-Type': 'application/json'
           },

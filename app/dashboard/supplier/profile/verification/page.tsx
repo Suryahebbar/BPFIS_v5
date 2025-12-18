@@ -117,7 +117,7 @@ export default function VerificationPage() {
         }
       });
 
-      const response = await fetch('/api/seller/documents', withSupplierAuth({
+      const response = await fetch('/api/supplier/documents', withSupplierAuth({
         method: 'POST',
         body: formData
       }));
@@ -125,14 +125,25 @@ export default function VerificationPage() {
       const data = await response.json();
 
       if (response.ok) {
-        setSuccess('Documents uploaded successfully! Your verification is now under review.');
+        // Check if[x] if there were any upload failures
+        if (data.uploadSummary && data.uploadSummary.failed > 0) {
+          setSuccess(`Documents processed! ${data.uploadSummary.successful} uploaded successfully, ${data.uploadSummary.failed} saved locally. Your verification is under review.`);
+          
+          // Log failed uploads for debugging
+          if (data.uploadSummary.failedDetails && data.uploadSummary.failedDetails.length > 0) {
+            console.warn('Some documents failed to upload:', data.uploadSummary.failedDetails);
+          }
+        } else {
+          setSuccess('All documents uploaded successfully! Your verification is now under review.');
+        }
+        
         await loadProfile(); // Reload profile
       } else {
         setError(data.error || 'Failed to upload documents');
       }
     } catch (error) {
       console.error('Error uploading documents:', error);
-      setError('Failed to upload documents');
+      setError(error instanceof Error ? error.message : 'Failed to upload documents');
     } finally {
       setUploading(false);
     }

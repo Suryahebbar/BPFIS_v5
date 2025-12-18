@@ -37,6 +37,7 @@ export default function InventoryLogsPage() {
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [page, setPage] = useState<number>(1);
   const [pagination, setPagination] = useState<Pagination | null>(null);
+  const [supplierId, setSupplierId] = useState<string>("");
 
   useEffect(() => {
     void loadLogs(page);
@@ -48,12 +49,25 @@ export default function InventoryLogsPage() {
       setLoading(true);
       setError("");
 
+      // Get supplierId if not already set
+      let currentSupplierId = supplierId;
+      if (!currentSupplierId) {
+        const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          currentSupplierId = profileData.seller?._id || 'temp';
+          setSupplierId(currentSupplierId);
+        } else {
+          throw new Error('Failed to get supplier profile');
+        }
+      }
+
       const params = new URLSearchParams({
         page: targetPage.toString(),
         limit: "20",
       });
 
-      const response = await fetch(`/api/supplier/inventory/logs?${params.toString()}`, withSupplierAuth());
+      const response = await fetch(`/api/supplier/${currentSupplierId}/inventory/logs?${params.toString()}`, withSupplierAuth());
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {

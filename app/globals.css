@@ -671,7 +671,7 @@ body {
   background: var(--primary-teal-lighter);
   color: var(--primary-teal);
   font-weight: 600;
-  border-left-color: var(--primary-teal);
+  border-left-color: #8B5CF6; /* Purple color for active indicator */
 }
 
 .sidebar-item-icon {

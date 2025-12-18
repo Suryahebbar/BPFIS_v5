@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { withSupplierAuth } from '@/lib/supplier-auth';
+import { useSupplierId } from './layout';
 
 interface DashboardStats {
   totalRevenue: number;
@@ -38,43 +40,35 @@ interface TopProduct {
 }
 
 export default function SupplierDashboard() {
+  const [stats, setStats] = useState<any>(null);
+  const [recentOrders, setRecentOrders] = useState<any[]>([]);
+  const [lowStockProducts, setLowStockProducts] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
-  const [lowStockProducts, setLowStockProducts] = useState<LowStockProduct[]>([]);
-  const [topProducts, setTopProducts] = useState<TopProduct[]>([]);
   const [error, setError] = useState('');
   const [taxInclusive, setTaxInclusive] = useState<boolean>(true);
   const [taxRate, setTaxRate] = useState<number>(0.18);
+  const router = useRouter();
+  const supplierId = useSupplierId();
 
   useEffect(() => {
-    loadDashboardData();
-  }, []);
+    if (supplierId) {
+      loadDashboardData();
+    }
+  }, [supplierId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadDashboardData = async () => {
+    if (!supplierId) {
+      console.error('No supplier ID available');
+      return;
+    }
+
     try {
       setLoading(true);
       
-      // For development, check localStorage first for completed setup
-      const localProfile = localStorage.getItem('sellerProfile');
-      if (!localProfile) {
-        // No local profile found, check API
-        const profileResponse = await fetch('/api/seller', withSupplierAuth());
-
-        if (profileResponse.ok) {
-          const profileData = await profileResponse.json();
-          
-          // If setup is needed, redirect to setup page
-          if (profileData.needsSetup) {
-            window.location.href = '/dashboard/supplier/setup';
-            return;
-          }
-        }
-      }
-
       // Load supplier settings for tax display
       try {
-        const settingsRes = await fetch('/api/supplier/settings', withSupplierAuth());
+        const settingsRes = await fetch(`/api/supplier/${supplierId}/settings`, withSupplierAuth());
         if (settingsRes.ok) {
           const data = await settingsRes.json();
           if (data.settings) {
@@ -86,59 +80,62 @@ export default function SupplierDashboard() {
         console.error('Error loading supplier settings for dashboard:', e);
       }
 
-      // Load dashboard data
+      // Load dashboard data with supplierId
       const [statsRes, ordersRes, lowStockRes, topProductsRes] = await Promise.all([
-        fetch('/api/supplier/dashboard/stats', withSupplierAuth()),
-        fetch('/api/supplier/dashboard/recent-orders', withSupplierAuth()),
-        fetch('/api/supplier/dashboard/low-stock', withSupplierAuth()),
-        fetch('/api/supplier/dashboard/top-products', withSupplierAuth())
+        fetch(`/api/supplier/${supplierId}/dashboard/stats`, withSupplierAuth()),
+        fetch(`/api/supplier/${supplierId}/dashboard/recent-orders`, withSupplierAuth()),
+        fetch(`/api/supplier/${supplierId}/dashboard/low-stock`, withSupplierAuth()),
+        fetch(`/api/supplier/${supplierId}/dashboard/top-products`, withSupplierAuth())
       ]);
 
-      // Handle stats response with proper error handling
-      if (statsRes.status === 401) {
-        // Redirect to login if unauthorized
-        window.location.href = '/dashboard/supplier/login';
-        return;
-      }
+        // Handle stats response with proper error handling
+        if (statsRes.status === 401) {
+          // Redirect to login if unauthorized
+          window.location.href = '/login';
+          return;
+        }
 
-      // Handle stats response
-      if (statsRes.ok) {
-        const statsData = await statsRes.json();
-        setStats(statsData);
-      } else {
-        setStats({
-          totalRevenue: 0,
-          totalOrders: 0,
-          activeProducts: 0,
-          avgOrderValue: 0,
-          revenueGrowth: 0,
-          orderGrowth: 0
-        });
-      }
+        // Handle stats response
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          console.log('Dashboard stats loaded:', statsData);
+          setStats(statsData);
+        } else {
+          const errorData = await statsRes.json().catch(() => ({}));
+          console.error('Dashboard stats error:', errorData);
+          setStats({
+            totalRevenue: 0,
+            totalOrders: 0,
+            activeProducts: 0,
+            avgOrderValue: 0,
+            revenueGrowth: 0,
+            orderGrowth: 0
+          });
+        }
 
-      // Handle recent orders response
-      if (ordersRes.ok) {
-        const ordersData = await ordersRes.json();
-        setRecentOrders(ordersData.orders || []);
-      } else {
-        setRecentOrders([]);
-      }
+        // Handle recent orders response
+        if (ordersRes.ok) {
+          const ordersData = await ordersRes.json();
+          setRecentOrders(ordersData.orders || []);
+        } else {
+          setRecentOrders([]);
+        }
 
-      // Handle low stock response
-      if (lowStockRes.ok) {
-        const lowStockData = await lowStockRes.json();
-        setLowStockProducts(lowStockData.products || []);
-      } else {
-        setLowStockProducts([]);
-      }
+        // Handle low stock response
+        if (lowStockRes.ok) {
+          const lowStockData = await lowStockRes.json();
+          setLowStockProducts(lowStockData.products || []);
+        } else {
+          setLowStockProducts([]);
+        }
 
-      // Handle top products response
-      if (topProductsRes.ok) {
-        const topProductsData = await topProductsRes.json();
-        setTopProducts(topProductsData.products || []);
-      } else {
-        setTopProducts([]);
-      }
+        // Handle top products response
+        if (topProductsRes.ok) {
+          const topProductsData = await topProductsRes.json();
+          setTopProducts(topProductsData.products || []);
+        } else {
+          setTopProducts([]);
+        }
 
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -208,7 +205,7 @@ export default function SupplierDashboard() {
             <div>
               <p className="metric-label">Total Revenue</p>
               <p className="metric-value">
-                ₹{stats ? applyTax(stats.totalRevenue).toLocaleString() : '0'}
+                ₹{stats?.totalRevenue ? applyTax(stats.totalRevenue).toLocaleString() : '0'}
               </p>
               {stats?.revenueGrowth && (
                 <p className={`metric-change ${stats.revenueGrowth > 0 ? 'positive' : 'negative'}`}>
@@ -230,7 +227,7 @@ export default function SupplierDashboard() {
             <div>
               <p className="metric-label">Total Orders</p>
               <p className="metric-value">
-                {stats?.totalOrders.toLocaleString() || '0'}
+                {stats?.totalOrders?.toLocaleString() || '0'}
               </p>
               {stats?.orderGrowth && (
                 <p className={`metric-change ${stats.orderGrowth > 0 ? 'positive' : 'negative'}`}>
@@ -252,7 +249,7 @@ export default function SupplierDashboard() {
             <div>
               <p className="metric-label">Active Products</p>
               <p className="metric-value">
-                {stats?.activeProducts.toLocaleString() || '0'}
+                {stats?.activeProducts?.toLocaleString() || '0'}
               </p>
               <p className="text-sm text-[var(--gray-600)] mt-1">Products listed</p>
             </div>
@@ -270,7 +267,7 @@ export default function SupplierDashboard() {
             <div>
               <p className="metric-label">Avg Order Value</p>
               <p className="metric-value">
-                ₹{stats ? applyTax(stats.avgOrderValue).toFixed(2) : '0.00'}
+                ₹{stats?.avgOrderValue ? applyTax(stats.avgOrderValue).toFixed(2) : '0.00'}
               </p>
               <p className="text-sm text-[var(--gray-600)] mt-1">Per order</p>
             </div>

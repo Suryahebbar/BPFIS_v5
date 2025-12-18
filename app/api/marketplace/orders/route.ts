@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { MarketplaceOrder } from '@/lib/models/marketplace-order';
-import { Product } from '@/lib/models/product';
-import { Seller } from '@/lib/models/seller';
+import { Product } from '@/lib/models/supplier';
+import { Seller } from '@/lib/models/supplier';
 import { sendSellerNewOrderEmail } from '@/lib/sellerNotifications';
 import { connectDB } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
       if (!product || product.status !== 'active') {
         return NextResponse.json({ error: `Product ${item.name} is not available` }, { status: 400 });
       }
-      if (product.inventory?.currentStock < item.quantity) {
+      if (product.stockQuantity < item.quantity) {
         return NextResponse.json({ error: `Insufficient stock for ${item.name}` }, { status: 400 });
       }
     }
@@ -30,8 +30,7 @@ export async function POST(request: Request) {
     // Update product stock
     for (const item of items) {
       await Product.findByIdAndUpdate(item.productId, {
-        $inc: { 'inventory.currentStock': -item.quantity },
-        $set: { 'inventory.lastUpdated': new Date() }
+        $inc: { stockQuantity: -item.quantity }
       });
     }
 

@@ -1,7 +1,50 @@
 import { NextResponse } from 'next/server';
 import { Seller } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
+import { authenticateSupplier } from '@/lib/supplier-auth-middleware';
 import bcrypt from 'bcryptjs';
+
+// GET /api/supplier - Get current supplier profile
+export async function GET(request: Request) {
+  try {
+    await connectDB();
+    
+    // Use cookie-based authentication
+    const auth = await authenticateSupplier(request as any);
+    if (!auth) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    console.log('Looking for supplier with ID:', auth.sellerId);
+    
+    // Try to find the supplier by ID first
+    let supplier = await Seller.findById(auth.sellerId).select('-passwordHash') as any;
+    
+    // If not found by ID, try to find by email (fallback)
+    if (!supplier && auth.email) {
+      console.log('Supplier not found by ID, trying email:', auth.email);
+      supplier = await Seller.findOne({ email: auth.email }).select('-passwordHash') as any;
+    }
+    
+    if (!supplier) {
+      console.log('Supplier not found, checking all suppliers...');
+      const allSuppliers = await Seller.find({}).select('_id email isActive');
+      console.log('All suppliers in database:', allSuppliers.map(s => ({ id: s._id, email: s.email, active: s.isActive })));
+      
+      return NextResponse.json({ 
+        supplier: null,
+        needsSetup: true,
+        message: 'Profile not found - setup required'
+      }, { status: 404 });
+    }
+
+    console.log('Supplier found:', supplier.email);
+    return NextResponse.json({ supplier, needsSetup: false });
+  } catch (error) {
+    console.error('Error fetching supplier:', error);
+    return NextResponse.json({ error: 'Failed to fetch supplier' }, { status: 500 });
+  }
+}
 
 // POST /api/supplier/register - Register new supplier
 export async function POST(request: Request) {

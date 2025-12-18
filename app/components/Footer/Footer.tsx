@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function Footer() {
   return (
-    <footer className="bg-[#f7f0de] border-t border-[#e2d4b7]">
+    <footer id="footer" className="bg-[#f7f0de] border-t border-[#e2d4b7]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <div>
@@ -15,7 +15,7 @@ export default function Footer() {
           <div>
             <h4 className="text-sm font-semibold text-[#111827] uppercase tracking-wider mb-4">Platform</h4>
             <ul className="space-y-2">
-              <li><Link href="/marketplace" className="text-[#4b5563] hover:text-[#166534]">Marketplace</Link></li>
+              <li><Link href="/platform" className="text-[#4b5563] hover:text-[#166534]">Platform</Link></li>
               <li><Link href="/features" className="text-[#4b5563] hover:text-[#166534]">Features</Link></li>
               <li><Link href="/register" className="text-[#4b5563] hover:text-[#166534]">Register</Link></li>
             </ul>

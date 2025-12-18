@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Product as SupplierProduct } from '@/lib/models/supplier';
-import { Seller } from '@/lib/models/seller';
+import { Product as SupplierProduct, Seller } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
 
 export async function GET(
@@ -14,12 +13,19 @@ export async function GET(
 
     // Find product with seller information
     const product = await SupplierProduct.findById(id)
-      .populate('sellerId', 'companyName email phone')
+      .populate({
+        path: 'sellerId',
+        model: Seller,
+        select: 'companyName email phone'
+      })
       .lean();
 
     if (!product || product.status !== 'active') {
       return NextResponse.json({ error: 'Product not found' }, { status: 404 });
     }
+
+    console.log('Product found:', product);
+    console.log('SellerId:', product.sellerId);
 
     // Format product for marketplace
     const formattedProduct = {
@@ -33,10 +39,10 @@ export async function GET(
       })) : [],
       category: product.category,
       seller: {
-        _id: product.sellerId?._id || product.sellerId,
+        _id: (product.sellerId as any)?._id || product.sellerId,
         companyName: (product.sellerId as any)?.companyName || 'Unknown Seller',
-        email: (product.sellerId as any)?.email,
-        phone: (product.sellerId as any)?.phone
+        email: (product.sellerId as any)?.email || 'Not available',
+        phone: (product.sellerId as any)?.phone || 'Not available'
       },
       stock: product.stockQuantity || 0,
       rating: 0, // Not available in the supplier model

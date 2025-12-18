@@ -52,9 +52,9 @@ export default function ProfileSetupPage() {
         return;
       }
 
-      const response = await fetch('/api/seller', withSupplierAuth());
+      const profileResponse = await fetch('/api/supplier', withSupplierAuth());
 
-      const data = await response.json();
+      const data = await profileResponse.json();
       
       // If setup is not needed (seller exists), redirect to dashboard
       if (!data.needsSetup && data.seller) {
@@ -115,7 +115,7 @@ export default function ProfileSetupPage() {
     }
 
     try {
-      const response = await fetch('/api/seller', withSupplierAuth({
+      const response = await fetch('/api/supplier', withSupplierAuth({
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'

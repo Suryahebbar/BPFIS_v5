@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Product } from '@/lib/models/product';
-import { Seller } from '@/lib/models/seller';
+import { Product, Seller } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
 
 export async function POST(request: Request) {
@@ -20,23 +19,19 @@ export async function POST(request: Request) {
         price: 299,
         category: 'seeds',
         sellerId: seller._id,
-        inventory: {
-          currentStock: 150,
-          lowStockThreshold: 20,
-          lastUpdated: new Date()
-        },
-        images: [],
+        stockQuantity: 150,
+        reorderThreshold: 20,
+        sku: 'WHT-001',
+        images: [{ url: 'https://via.placeholder.com/400', alt: 'Wheat Seeds', position: 0 }],
         tags: ['wheat', 'seeds', 'high-yield', 'organic'],
-        rating: 4.5,
-        reviewCount: 23,
+        status: 'active',
         specifications: {
           variety: 'HD-2967',
           germination: '85%',
           purity: '98%',
           seedRate: '100 kg/ha',
           maturity: '120-130 days'
-        },
-        featured: true
+        }
       },
       {
         name: 'Organic Bio Fertilizer - NPK Rich',
@@ -44,15 +39,12 @@ export async function POST(request: Request) {
         price: 450,
         category: 'fertilizers',
         sellerId: seller._id,
-        inventory: {
-          currentStock: 80,
-          lowStockThreshold: 15,
-          lastUpdated: new Date()
-        },
-        images: [],
+        stockQuantity: 80,
+        reorderThreshold: 15,
+        sku: 'FERT-001',
+        images: [{ url: 'https://via.placeholder.com/400', alt: 'Bio Fertilizer', position: 0 }],
         tags: ['fertilizer', 'organic', 'npk', 'bio'],
-        rating: 4.7,
-        reviewCount: 18,
+        status: 'active',
         specifications: {
           npkRatio: '10:10:10',
           formulation: 'Granular',
@@ -67,15 +59,12 @@ export async function POST(request: Request) {
         price: 899,
         category: 'tools',
         sellerId: seller._id,
-        inventory: {
-          currentStock: 25,
-          lowStockThreshold: 5,
-          lastUpdated: new Date()
-        },
-        images: [],
+        stockQuantity: 25,
+        reorderThreshold: 5,
+        sku: 'TOOL-001',
+        images: [{ url: 'https://via.placeholder.com/400', alt: 'Garden Tools', position: 0 }],
         tags: ['tools', 'garden', 'set', 'professional'],
-        rating: 4.3,
-        reviewCount: 12,
+        status: 'active',
         specifications: {
           pieces: '5',
           material: 'Stainless steel with wooden handles',
@@ -88,17 +77,14 @@ export async function POST(request: Request) {
         name: 'Drip Irrigation Kit - Complete Setup',
         description: 'Complete drip irrigation system for efficient water management in farms. Includes all necessary components for easy installation.',
         price: 2499,
-        category: 'irrigation',
+        category: 'equipment',
         sellerId: seller._id,
-        inventory: {
-          currentStock: 12,
-          lowStockThreshold: 3,
-          lastUpdated: new Date()
-        },
-        images: [],
+        stockQuantity: 12,
+        reorderThreshold: 3,
+        sku: 'IRR-001',
+        images: [{ url: 'https://via.placeholder.com/400', alt: 'Irrigation Kit', position: 0 }],
         tags: ['irrigation', 'drip', 'water-saving', 'kit'],
-        rating: 4.8,
-        reviewCount: 8,
+        status: 'active',
         specifications: {
           coverage: '1 acre',
           pipeMaterial: 'UV stabilized HDPE',
@@ -113,15 +99,12 @@ export async function POST(request: Request) {
         price: 399,
         category: 'pesticides',
         sellerId: seller._id,
-        inventory: {
-          currentStock: 60,
-          lowStockThreshold: 10,
-          lastUpdated: new Date()
-        },
-        images: [],
+        stockQuantity: 60,
+        reorderThreshold: 10,
+        sku: 'PEST-001',
+        images: [{ url: 'https://via.placeholder.com/400', alt: 'Pesticide', position: 0 }],
         tags: ['pesticide', 'organic', 'neem', 'natural'],
-        rating: 4.4,
-        reviewCount: 15,
+        status: 'active',
         specifications: {
           activeIngredient: 'Neem oil 3000 ppm',
           formulation: 'Emulsifiable concentrate',
@@ -134,41 +117,34 @@ export async function POST(request: Request) {
         name: 'Mini Tractor - 20 HP Power',
         description: 'Compact mini tractor perfect for small to medium farms. Easy to operate and maintain with excellent fuel efficiency.',
         price: 285000,
-        category: 'machinery',
+        category: 'equipment',
         sellerId: seller._id,
-        inventory: {
-          currentStock: 3,
-          lowStockThreshold: 1,
-          lastUpdated: new Date()
-        },
-        images: [],
+        stockQuantity: 3,
+        reorderThreshold: 1,
+        sku: 'TRAC-001',
+        images: [{ url: 'https://via.placeholder.com/400', alt: 'Mini Tractor', position: 0 }],
         tags: ['tractor', 'machinery', 'mini', 'farm'],
-        rating: 4.6,
-        reviewCount: 6,
+        status: 'active',
         specifications: {
           power: '20 HP',
           engine: '4-stroke diesel',
           fuelTank: '25 liters',
           liftingCapacity: '750 kg',
           warranty: '2 years'
-        },
-        featured: true
+        }
       },
       {
         name: 'Organic Vegetable Seeds Mix',
         description: 'Assorted organic vegetable seeds including tomato, chili, brinjal, and more. Perfect for kitchen garden.',
         price: 199,
-        category: 'organic',
+        category: 'seeds',
         sellerId: seller._id,
-        inventory: {
-          currentStock: 200,
-          lowStockThreshold: 30,
-          lastUpdated: new Date()
-        },
-        images: [],
+        stockQuantity: 200,
+        reorderThreshold: 30,
+        sku: 'VEG-001',
+        images: [{ url: 'https://via.placeholder.com/400', alt: 'Vegetable Seeds', position: 0 }],
         tags: ['vegetable', 'seeds', 'organic', 'mixed'],
-        rating: 4.2,
-        reviewCount: 31,
+        status: 'active',
         specifications: {
           varieties: 'Tomato, Chili, Brinjal, Okra, Bottle gourd',
           totalSeeds: '500+ seeds',
@@ -181,17 +157,14 @@ export async function POST(request: Request) {
         name: 'Solar Water Pump - 1 HP',
         description: 'Energy efficient solar water pump for irrigation. Works on solar power, reduces electricity costs significantly.',
         price: 18500,
-        category: 'irrigation',
+        category: 'equipment',
         sellerId: seller._id,
-        inventory: {
-          currentStock: 8,
-          lowStockThreshold: 2,
-          lastUpdated: new Date()
-        },
-        images: [],
+        stockQuantity: 8,
+        reorderThreshold: 2,
+        sku: 'PUMP-001',
+        images: [{ url: 'https://via.placeholder.com/400', alt: 'Solar Pump', position: 0 }],
         tags: ['pump', 'solar', 'irrigation', 'energy-saving'],
-        rating: 4.9,
-        reviewCount: 4,
+        status: 'active',
         specifications: {
           power: '1 HP',
           head: '100 feet',

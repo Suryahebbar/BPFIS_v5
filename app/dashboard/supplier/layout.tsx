@@ -1,8 +1,20 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect, createContext, useContext } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { withSupplierAuth } from '@/lib/supplier-auth';
+
+// Create context for supplier ID
+const SupplierIdContext = createContext<string | null>(null);
+
+export const useSupplierId = () => {
+  const context = useContext(SupplierIdContext);
+  if (!context) {
+    throw new Error('useSupplierId must be used within SupplierLayout');
+  }
+  return context;
+};
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard/supplier', current: true },
@@ -21,8 +33,38 @@ export default function SupplierLayout({
   children: React.ReactNode;
 }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [supplierId, setSupplierId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const pathname = usePathname();
   const router = useRouter();
+
+  // Load supplier ID on mount
+  useEffect(() => {
+    const loadSupplierId = async () => {
+      try {
+        const response = await fetch('/api/supplier', withSupplierAuth());
+        if (response.ok) {
+          const data = await response.json();
+          // Try both supplier and seller keys
+          const id = data.supplier?._id || data.seller?._id;
+          if (id) {
+            setSupplierId(id);
+          } else {
+            console.error('No supplier ID found in response:', data);
+          }
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.error('Failed to load supplier ID:', errorData);
+        }
+      } catch (error) {
+        console.error('Error loading supplier ID:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSupplierId();
+  }, []);
 
   const isActive = (href: string) => {
     if (href === '/dashboard/supplier') {
@@ -40,14 +82,23 @@ export default function SupplierLayout({
     router.push('/login');
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-t-blue-600"></div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Mobile sidebar */}
-      <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
-        <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
-        <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
-          <div className="flex h-16 items-center justify-between px-4 border-b border-[var(--gray-300)]">
-            <h1 className="text-lg font-semibold text-[var(--navy-blue)]">Supplier Portal</h1>
+    <SupplierIdContext.Provider value={supplierId}>
+      <div className="min-h-screen bg-gray-50">
+        {/* Mobile sidebar */}
+        <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? 'block' : 'hidden'}`}>
+          <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
+          <div className="fixed inset-y-0 left-0 flex w-64 flex-col bg-white">
+            <div className="flex h-16 items-center justify-between px-4 border-b border-[var(--gray-300)]">
+              <h1 className="text-lg font-semibold text-[var(--navy-blue)]">Supplier Portal</h1>
             <button
               aria-label="Close sidebar"
               onClick={() => setSidebarOpen(false)}
@@ -152,6 +203,7 @@ export default function SupplierLayout({
           </div>
         </main>
       </div>
-    </div>
+      </div>
+    </SupplierIdContext.Provider>
   );
-}
+} 

@@ -24,91 +24,74 @@ interface Order {
 
 export default function FarmerMarketplaceOrders() {
   const searchParams = useSearchParams();
-  const userId = searchParams.get('userId');
+  const initialUserId = searchParams.get('userId');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all');
+  const [uid, setUid] = useState<string | null>(initialUserId);
 
   // Helper function to build URLs with userId
   const buildUrl = (path: string) => {
-    return userId ? `${path}?userId=${userId}` : path;
+    return uid ? `${path}?userId=${uid}` : '/login';
   };
 
   useEffect(() => {
+    // Require userId from URL params, redirect to login if not present
+    const urlUserId = searchParams.get('userId');
+    if (urlUserId) {
+      setUid(urlUserId);
+    } else {
+      // No userId in URL, redirect to login
+      window.location.href = '/login';
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    // Fetch whenever uid is ready/changes, but keep deps stable size
+    if (!uid) { 
+      setLoading(false);
+      setOrders([]);
+      return; 
+    }
     loadOrders();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [uid]);
 
   const loadOrders = async () => {
     try {
-      // Mock orders data for now
-      const mockOrders: Order[] = [
-        {
-          _id: '1',
-          orderId: 'AGR1701234567',
-          items: [
-            {
-              name: 'Organic Wheat Seeds',
-              quantity: 2,
-              price: 299,
-              image: undefined
-            },
-            {
-              name: 'Bio Fertilizer Pack',
-              quantity: 1,
-              price: 450,
-              image: undefined
-            }
-          ],
-          totalAmount: 1048,
-          status: 'delivered',
-          createdAt: '2025-11-25T10:30:00Z',
-          shippingDetails: {
-            estimatedDelivery: '2025-11-29T00:00:00Z',
-            status: 'delivered'
-          }
-        },
-        {
-          _id: '2',
-          orderId: 'AGR1701234568',
-          items: [
-            {
-              name: 'Garden Tools Set',
-              quantity: 1,
-              price: 899,
-              image: undefined
-            }
-          ],
-          totalAmount: 899,
-          status: 'shipped',
-          createdAt: '2025-11-28T14:15:00Z',
-          shippingDetails: {
-            estimatedDelivery: '2025-12-02T00:00:00Z',
-            status: 'shipped'
-          }
-        },
-        {
-          _id: '3',
-          orderId: 'AGR1701234569',
-          items: [
-            {
-              name: 'Irrigation Pipes',
-              quantity: 5,
-              price: 199,
-              image: undefined
-            }
-          ],
-          totalAmount: 995,
-          status: 'processing',
-          createdAt: '2025-11-30T09:45:00Z',
-          shippingDetails: {
-            estimatedDelivery: '2025-12-04T00:00:00Z',
-            status: 'processing'
-          }
-        }
-      ];
-      setOrders(mockOrders);
+      setLoading(true);
+      if (!uid) { 
+        setOrders([]);
+        setLoading(false);
+        return; 
+      }
+      const res = await fetch(`/api/farmer/orders?userId=${uid}`, { cache: 'no-store' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || 'Failed to load orders');
+      const apiOrders = Array.isArray(data?.orders) ? data.orders : [];
+      const mapped: Order[] = apiOrders.map((o: any) => {
+        const status = o.status || o.orderStatus || 'confirmed';
+        const created = o.createdAt || new Date().toISOString();
+        const eta = (status === 'delivered' || status === 'cancelled') ? undefined : new Date(new Date(created).getTime() + 4 * 24 * 60 * 60 * 1000).toISOString();
+        return {
+          _id: String(o._id || o.id || o.orderNumber),
+          orderId: o.orderNumber || o.orderId || '',
+          items: (o.items || []).map((it: any) => ({
+            name: it.name,
+            quantity: Number(it.quantity) || 0,
+            price: Number(it.price) || 0,
+            image: it.image,
+          })),
+          totalAmount: Number(o.totalAmount) || 0,
+          status,
+          createdAt: created,
+          shippingDetails: { estimatedDelivery: eta, status },
+        } as Order;
+      });
+      setOrders(mapped);
     } catch (error) {
       console.error('Error loading orders:', error);
+      setOrders([]);
     } finally {
       setLoading(false);
     }
@@ -207,7 +190,7 @@ export default function FarmerMarketplaceOrders() {
           </p>
           {filter === 'all' && (
             <Link
-              href={buildUrl('/dashboard/farmer/marketplace')}
+              href={buildUrl('/dashboard/farmer/marketplace/products')}
               className="inline-block mt-6 bg-[#1f3b2c] text-white px-6 py-3 rounded-lg hover:bg-[#2d4f3c]"
             >
               Browse Products

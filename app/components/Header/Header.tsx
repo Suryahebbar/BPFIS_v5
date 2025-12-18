@@ -87,9 +87,6 @@ export default function Header() {
               >
                 Register
               </Link>
-              <button className="ml-2 p-2.5 text-[#374151] hover:text-[#166534] hover:bg-[#f0fdf4] rounded-lg transition-all">
-                <ShoppingCart className="h-5 w-5" />
-              </button>
             </nav>
           )}
 

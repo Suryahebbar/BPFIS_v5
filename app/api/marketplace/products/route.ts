@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Product as SupplierProduct } from '@/lib/models/supplier';
-import { Seller } from '@/lib/models/seller';
 import { connectDB } from '@/lib/db';
+import { Product } from '@/lib/models';
+import mongoose from 'mongoose';
+
+// Ensure models are registered
+import '@/lib/models';
 
 export async function GET(request: Request) {
   try {
@@ -57,8 +60,15 @@ export async function GET(request: Request) {
     }
 
     // Fetch products with seller information
-    const products = await SupplierProduct.find(query)
-      .populate('sellerId', 'companyName')
+    const products = await Product.find({
+      ...query,
+      status: 'active'
+    })
+      .populate({
+        path: 'sellerId',
+        select: 'companyName verificationStatus',
+        model: 'Seller'
+      })
       .sort(sort)
       .skip((page - 1) * limit)
       .limit(limit)
@@ -87,7 +97,10 @@ export async function GET(request: Request) {
       status: product.status || 'draft'
     }));
 
-    const total = await SupplierProduct.countDocuments(query);
+    const total = await Product.countDocuments({
+      ...query,
+      status: 'active'
+    });
 
     return NextResponse.json({
       products: formattedProducts,

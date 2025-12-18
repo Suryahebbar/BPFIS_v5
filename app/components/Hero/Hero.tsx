@@ -51,10 +51,10 @@ export default function Hero() {
           </p>
           <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
             <a 
-              href="/marketplace" 
+              href="#footer" 
               className="px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#d97706] hover:bg-[#b45309] md:py-4 md:text-lg md:px-10 transition-colors"
             >
-              Explore the Marketplace
+              Explore Agrilink
             </a>
             <a 
               href="/register" 

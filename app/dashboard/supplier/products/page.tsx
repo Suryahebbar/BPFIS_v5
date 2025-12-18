@@ -40,6 +40,7 @@ export default function ProductsPage() {
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [supplierId, setSupplierId] = useState<string>('');
   const [pagination, setPagination] = useState<{
     page: number;
     limit: number;
@@ -68,6 +69,27 @@ export default function ProductsPage() {
   const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // Get supplierId if not already set
+      let currentSupplierId = supplierId;
+      if (!currentSupplierId) {
+        const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          // Try both supplier and seller keys
+          currentSupplierId = profileData.supplier?._id || profileData.seller?._id || '';
+          if (!currentSupplierId) {
+            console.error('No supplier ID found in profile:', profileData);
+            throw new Error('Supplier ID not found in profile');
+          }
+          setSupplierId(currentSupplierId);
+        } else {
+          const errorData = await profileResponse.json().catch(() => ({}));
+          console.error('Failed to get supplier profile:', errorData);
+          throw new Error(errorData.error || 'Failed to get supplier profile');
+        }
+      }
+      
       const params = new URLSearchParams({
         page: currentPage.toString(),
         limit: '10',
@@ -76,43 +98,63 @@ export default function ProductsPage() {
         ...(selectedStatus && { status: selectedStatus })
       });
 
-      const response = await fetch(`/api/supplier/products?${params}`, withSupplierAuth());
+      const response = await fetch(`/api/supplier/${currentSupplierId}/products?${params}`, withSupplierAuth());
 
       if (!response.ok) {
-        throw new Error('Failed to fetch products');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Products API Error:', errorData);
+        throw new Error(errorData.error || 'Failed to fetch products');
       }
 
       const data: ProductsResponse = await response.json();
-      setProducts(data.products);
-      setPagination(data.pagination);
+      console.log('Products loaded:', data.products?.length || 0, 'products');
+      setProducts(data.products || []);
+      setPagination(data.pagination || null);
     } catch (error) {
       console.error('Error loading products:', error);
       setError('Failed to load products');
     } finally {
       setLoading(false);
     }
-  }, [currentPage, searchTerm, selectedCategory, selectedStatus]);
+  }, [currentPage, searchTerm, selectedCategory, selectedStatus, supplierId]);
 
   useEffect(() => {
     const loadAll = async () => {
       try {
-        const settingsRes = await fetch('/api/supplier/settings', withSupplierAuth());
-        if (settingsRes.ok) {
-          const data = await settingsRes.json();
-          if (data.settings) {
-            setTaxInclusive(!!data.settings.taxInclusive);
-            setTaxRate(typeof data.settings.taxRate === 'number' ? data.settings.taxRate : 0.18);
+        // Get supplierId if not already set
+        let currentSupplierId = supplierId;
+        if (!currentSupplierId) {
+          const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+          if (profileResponse.ok) {
+            const profileData = await profileResponse.json();
+            // Try both supplier and seller keys
+            currentSupplierId = profileData.supplier?._id || profileData.seller?._id || '';
+            if (currentSupplierId) {
+              setSupplierId(currentSupplierId);
+            }
           }
         }
-      } catch (e) {
-        console.error('Error loading supplier settings for products page:', e);
+        
+        if (currentSupplierId) {
+          const settingsRes = await fetch(`/api/supplier/${currentSupplierId}/settings`, withSupplierAuth());
+          if (settingsRes.ok) {
+            const data = await settingsRes.json();
+            if (data.settings) {
+              setTaxInclusive(!!data.settings.taxInclusive);
+              setTaxRate(typeof data.settings.taxRate === 'number' ? data.settings.taxRate : 0.18);
+            }
+          }
+        }
+        
+        loadProducts();
+      } catch (error) {
+        console.error('Error loading initial data:', error);
+        setLoading(false);
       }
-
-      await loadProducts();
     };
-
+    
     loadAll();
-  }, [loadProducts]);
+  }, [loadProducts, supplierId]);
 
   const formatPrice = (basePrice: number) => {
     const price = taxInclusive ? basePrice * (1 + taxRate) : basePrice;
@@ -125,7 +167,8 @@ export default function ProductsPage() {
     }
 
     try {
-      const response = await fetch(`/api/supplier/products/${productId}`, withSupplierAuth({
+      const currentSupplierId = supplierId || 'temp';
+      const response = await fetch(`/api/supplier/${currentSupplierId}/products/${productId}`, withSupplierAuth({
         method: 'DELETE'
       }));
 
@@ -140,10 +183,30 @@ export default function ProductsPage() {
     }
   };
 
-  const handleToggleStatus = async (productId: string) => {
+  const handleToggleStatus = async (productId: string, currentStatus: string) => {
     try {
-      const response = await fetch(`/api/supplier/products/${productId}`, withSupplierAuth({
-        method: 'POST'
+      const currentSupplierId = supplierId || 'temp';
+      
+      // Determine new status
+      let newStatus: string;
+      if (currentStatus === 'active') {
+        newStatus = 'inactive';
+      } else if (currentStatus === 'inactive') {
+        newStatus = 'active';
+      } else if (currentStatus === 'draft') {
+        newStatus = 'active';
+      } else {
+        newStatus = 'active';
+      }
+      
+      const response = await fetch(`/api/supplier/${currentSupplierId}/products/${productId}`, withSupplierAuth({
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus
+        })
       }));
 
       if (!response.ok) {
@@ -306,7 +369,7 @@ export default function ProductsPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-[#e2d4b7]">
-              {products.map((product) => (
+              {products?.map((product) => (
                 <tr key={product._id} className="hover:bg-[#f9fafb]">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
@@ -349,7 +412,7 @@ export default function ProductsPage() {
                         Edit
                       </Link>
                       <button
-                        onClick={() => handleToggleStatus(product._id)}
+                        onClick={() => handleToggleStatus(product._id, product.status)}
                         className="text-[#1f3b2c] hover:text-[#2d4f3c]"
                       >
                         {product.status === 'active' ? 'Deactivate' : 'Activate'}

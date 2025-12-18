@@ -40,6 +40,7 @@ export default function InventoryPage() {
   const [updateReason, setUpdateReason] = useState('manual');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [supplierId, setSupplierId] = useState<string>('');
 
   useEffect(() => {
     void loadInventoryData();
@@ -49,8 +50,21 @@ export default function InventoryPage() {
     try {
       setLoading(true);
       setError('');
+      
+      // Get supplierId if not already set
+      let currentSupplierId = supplierId;
+      if (!currentSupplierId) {
+        const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          currentSupplierId = profileData.seller?._id || 'temp';
+          setSupplierId(currentSupplierId);
+        } else {
+          throw new Error('Failed to get supplier profile');
+        }
+      }
 
-      const lowStockResponse = await fetch('/api/supplier/inventory/low-stock', withSupplierAuth());
+      const lowStockResponse = await fetch(`/api/supplier/${currentSupplierId}/dashboard/low-stock`, withSupplierAuth());
       const lowStockData = await lowStockResponse.json().catch(() => ({}));
 
       if (!lowStockResponse.ok) {
@@ -59,7 +73,7 @@ export default function InventoryPage() {
 
       setLowStockProducts((lowStockData as { products?: LowStockProduct[] }).products || []);
 
-      const logsResponse = await fetch('/api/supplier/inventory/logs?limit=10', withSupplierAuth());
+      const logsResponse = await fetch(`/api/supplier/${currentSupplierId}/inventory/logs?limit=10`, withSupplierAuth());
       const logsData = await logsResponse.json().catch(() => ({}));
 
       if (!logsResponse.ok) {
@@ -106,7 +120,8 @@ export default function InventoryPage() {
     }
 
     try {
-      const response = await fetch('/api/supplier/inventory/quick-update', withSupplierAuth({
+      const currentSupplierId = supplierId || 'temp';
+      const response = await fetch(`/api/supplier/${currentSupplierId}/inventory/quick-update`, withSupplierAuth({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

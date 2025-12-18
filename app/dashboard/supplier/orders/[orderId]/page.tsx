@@ -67,6 +67,7 @@ export default function OrderDetailPage() {
   const [trackingNumber, setTrackingNumber] = useState('');
   const [carrier, setCarrier] = useState('');
   const [estimatedDelivery, setEstimatedDelivery] = useState('');
+  const [supplierId, setSupplierId] = useState<string>('');
 
   const statusOptions: OrderStatus[] = useMemo(
     () => ['new', 'processing', 'shipped', 'delivered', 'returned', 'cancelled'],
@@ -88,32 +89,43 @@ export default function OrderDetailPage() {
     try {
       setLoading(true);
       setError('');
-      const response = await fetch(`/api/supplier/orders/${orderId}`, withSupplierAuth());
+      
+      // Get supplierId if not already set
+      let currentSupplierId = supplierId;
+      if (!currentSupplierId) {
+        const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          currentSupplierId = profileData.seller?._id || 'temp';
+          setSupplierId(currentSupplierId);
+        } else {
+          throw new Error('Failed to get supplier profile');
+        }
+      }
+      
+      const response = await fetch(`/api/supplier/${currentSupplierId}/orders/${orderId}`, withSupplierAuth());
 
       if (response.status === 401) {
-        router.push('/dashboard/supplier/login');
+        router.push('/login');
         return;
       }
 
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error || 'Failed to load order');
+        throw new Error((data as { error?: string }).error || 'Failed to load order');
       }
 
       const data = await response.json();
-      const loadedOrder: Order = data.order;
-      setOrder(loadedOrder);
-      setNotes(loadedOrder.notes || '');
-      setTrackingNumber(loadedOrder.shippingDetails?.trackingNumber || '');
-      setCarrier(loadedOrder.shippingDetails?.carrier || '');
-      setEstimatedDelivery(
-        loadedOrder.shippingDetails?.estimatedDelivery
-          ? new Date(loadedOrder.shippingDetails.estimatedDelivery).toISOString().split('T')[0]
-          : ''
-      );
-    } catch (err) {
-      console.error('Error loading order:', err);
-      setError(err instanceof Error ? err.message : 'Failed to load order');
+      setOrder(data.order);
+      
+      // Set form values from order data
+      setNotes(data.order?.notes || '');
+      setTrackingNumber(data.order?.shippingDetails?.trackingNumber || '');
+      setCarrier(data.order?.shippingDetails?.carrier || '');
+      setEstimatedDelivery(data.order?.shippingDetails?.estimatedDelivery || '');
+    } catch (error) {
+      console.error('Error loading order:', error);
+      setError(error instanceof Error ? error.message : 'Failed to load order');
     } finally {
       setLoading(false);
     }
@@ -125,8 +137,9 @@ export default function OrderDetailPage() {
       setError('');
       setSuccess('');
 
-      const response = await fetch(`/api/supplier/orders/${orderId}`, withSupplierAuth({
-        method: 'PUT',
+      const currentSupplierId = supplierId || 'temp';
+      const response = await fetch(`/api/supplier/${currentSupplierId}/orders/${orderId}`, withSupplierAuth({
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
         },

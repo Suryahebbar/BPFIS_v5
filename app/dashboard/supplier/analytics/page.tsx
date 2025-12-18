@@ -32,20 +32,174 @@ interface AnalyticsData {
   }[];
 }
 
+// Simple chart components (using CSS/SVG instead of external libraries)
+const LineChart = ({ data, dataKey, color, height = 200 }: { data: any[], dataKey: string, color: string, height?: number }) => {
+  if (!data || data.length === 0) return null;
+  
+  const maxValue = Math.max(...data.map(d => d[dataKey] || 0));
+  const minValue = 0;
+  const points = data.map((d, i) => {
+    const x = (i / (data.length - 1)) * 100;
+    const y = 100 - ((d[dataKey] - minValue) / (maxValue - minValue || 1)) * 100;
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <div className="relative" style={{ height }}>
+      <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <polyline
+          points={points}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+        />
+        {data.map((d, i) => {
+          const x = (i / (data.length - 1)) * 100;
+          const y = 100 - ((d[dataKey] - minValue) / (maxValue - minValue || 1)) * 100;
+          return (
+            <circle key={i} cx={x} cy={y} r="2" fill={color} />
+          );
+        })}
+      </svg>
+    </div>
+  );
+};
+
+const BarChart = ({ data, dataKey, labelKey, color, height = 200 }: { data: any[], dataKey: string, labelKey: string, color: string, height?: number }) => {
+  if (!data || data.length === 0) return null;
+  
+  const maxValue = Math.max(...data.map(d => d[dataKey] || 0));
+  
+  return (
+    <div className="space-y-2" style={{ height }}>
+      {data.slice(0, 10).map((item, index) => {
+        const height = (item[dataKey] / (maxValue || 1)) * 100;
+        return (
+          <div key={index} className="flex items-center space-x-2">
+            <div className="w-24 text-xs text-gray-600 truncate">{item[labelKey]}</div>
+            <div className="flex-1 bg-gray-200 rounded-full h-4 relative">
+              <div
+                className="absolute top-0 left-0 h-full rounded-full"
+                style={{ width: `${height}%`, backgroundColor: color }}
+              />
+            </div>
+            <div className="w-16 text-xs text-right text-gray-600">
+              {typeof item[dataKey] === 'number' ? item[dataKey].toLocaleString() : item[dataKey]}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const PieChart = ({ data, dataKey, labelKey, height = 200 }: { data: any[], dataKey: string, labelKey: string, height?: number }) => {
+  if (!data || data.length === 0) return null;
+  
+  const total = data.reduce((sum, item) => sum + (item[dataKey] || 0), 0);
+  let currentAngle = 0;
+  
+  const colors = ['#1f3b2c', '#e2d4b7', '#6b7280', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444'];
+  
+  return (
+    <div className="flex items-center justify-center" style={{ height }}>
+      <div className="relative">
+        <svg width="150" height="150" viewBox="0 0 150 150">
+          {data.map((item, index) => {
+            if (item[dataKey] === 0) return null;
+            const percentage = (item[dataKey] / total) * 100;
+            const angle = (percentage / 100) * 360;
+            const startAngle = currentAngle;
+            const endAngle = currentAngle + angle;
+            
+            const x1 = 75 + 50 * Math.cos((startAngle - 90) * Math.PI / 180);
+            const y1 = 75 + 50 * Math.sin((startAngle - 90) * Math.PI / 180);
+            const x2 = 75 + 50 * Math.cos((endAngle - 90) * Math.PI / 180);
+            const y2 = 75 + 50 * Math.sin((endAngle - 90) * Math.PI / 180);
+            
+            const largeArcFlag = angle > 180 ? 1 : 0;
+            
+            const pathData = [
+              `M 75 75`,
+              `L ${x1} ${y1}`,
+              `A 50 50 0 ${largeArcFlag} 1 ${x2} ${y2}`,
+              'Z'
+            ].join(' ');
+            
+            currentAngle += angle;
+            
+            return (
+              <path
+                key={index}
+                d={pathData}
+                fill={colors[index % colors.length]}
+                stroke="white"
+                strokeWidth="2"
+              />
+            );
+          })}
+        </svg>
+        <div className="absolute top-full mt-4 left-0 right-0 space-y-1">
+          {data.map((item, index) => (
+            <div key={index} className="flex items-center justify-between text-xs">
+              <div className="flex items-center space-x-2">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: colors[index % colors.length] }}
+                />
+                <span>{item[labelKey]}</span>
+              </div>
+              <span className="font-medium">
+                {((item[dataKey] / total) * 100).toFixed(1)}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [timeRange, setTimeRange] = useState('7d');
+  const [selectedProductId, setSelectedProductId] = useState('');
+  const [products, setProducts] = useState<Array<{id: string, name: string, sku: string, status: string, category: string, price: number}>>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [error, setError] = useState('');
+
+  // Load products for dropdown
+  const loadProducts = useCallback(async () => {
+    try {
+      setLoadingProducts(true);
+      // Temporarily use mock data for testing
+      const mockProducts = [
+        { id: '694383067f7e637ae7ac1c9e', name: 'Test Delivered Product', sku: 'TEST-001', status: 'active', category: 'vegetables', price: 100 },
+        { id: '694383067f7e637ae7ac1c9f', name: 'Sample Product', sku: 'SAMPLE-002', status: 'active', category: 'fruits', price: 150 }
+      ];
+      setProducts(mockProducts);
+    } catch (error) {
+      console.error('Error loading products:', error);
+    } finally {
+      setLoadingProducts(false);
+    }
+  }, []);
 
   const loadAnalytics = useCallback(async () => {
     try {
       setLoading(true);
       setError('');
-      const response = await fetch(`/api/supplier/analytics?range=${timeRange}`, withSupplierAuth());
+      const queryParams = new URLSearchParams({ range: timeRange });
+      if (selectedProductId) {
+        queryParams.append('productId', selectedProductId);
+      }
+      
+      // Use the actual supplier analytics API
+      const response = await fetch(`/api/supplier/analytics?${queryParams}`);
 
       if (response.status === 401) {
-        window.location.href = '/dashboard/supplier/login';
+        window.location.href = '/login';
         return;
       }
 
@@ -64,11 +218,15 @@ export default function AnalyticsPage() {
     } finally {
       setLoading(false);
     }
-  }, [timeRange]);
+  }, [timeRange, selectedProductId]);
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
   useEffect(() => {
     loadAnalytics();
-  }, [timeRange, loadAnalytics]);
+  }, [timeRange, selectedProductId, loadAnalytics]);
 
   if (loading) {
     return (
@@ -81,7 +239,7 @@ export default function AnalyticsPage() {
   if (!data) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-[#6b7280]">{error || 'No analytics data available'}</div>
+        <div className="text-[#6b7280]">No analytics data available</div>
       </div>
     );
   }
@@ -96,22 +254,38 @@ export default function AnalyticsPage() {
   return (
     <div className="space-y-6">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-[#1f3b2c]">Analytics Dashboard</h1>
           <p className="text-sm text-[#6b7280] mt-1">Track your business performance and insights</p>
         </div>
-        <select
-          value={timeRange}
-          onChange={(e) => setTimeRange(e.target.value)}
-          className="px-3 py-2 border border-[#e2d4b7] rounded-md focus:outline-none focus:ring-2 focus:ring-[#1f3b2c] focus:border-transparent text-gray-700"
-          aria-label="Select time range for analytics"
-        >
-          <option value="7d">Last 7 days</option>
-          <option value="30d">Last 30 days</option>
-          <option value="90d">Last 90 days</option>
-          <option value="1y">Last year</option>
-        </select>
+        <div className="flex items-center space-x-3">
+          <select
+            value={selectedProductId}
+            onChange={(e) => setSelectedProductId(e.target.value)}
+            disabled={loadingProducts}
+            className="px-3 py-2 border border-[#e2d4b7] rounded-md focus:outline-none focus:ring-2 focus:ring-[#1f3b2c] focus:border-transparent text-gray-700"
+            aria-label="Select product for analytics"
+          >
+            <option value="">All Products</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.name} ({product.sku})
+              </option>
+            ))}
+          </select>
+          <select
+            value={timeRange}
+            onChange={(e) => setTimeRange(e.target.value)}
+            className="px-3 py-2 border border-[#e2d4b7] rounded-md focus:outline-none focus:ring-2 focus:ring-[#1f3b2c] focus:border-transparent text-gray-700"
+            aria-label="Select time range for analytics"
+          >
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="90d">Last 90 days</option>
+            <option value="1y">Last year</option>
+          </select>
+        </div>
       </div>
 
       {/* Error Message */}
@@ -220,56 +394,51 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Top Products */}
+          {/* Sales Trends Chart */}
           <div className="bg-white border border-[#e2d4b7] rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-[#1f3b2c] mb-6">Top Selling Products</h2>
-            <div className="space-y-4">
-              {data.topProducts.map((product, index) => (
-                <div key={product.productId} className="flex items-center justify-between p-4 border border-[#e2d4b7] rounded-lg">
-                  <div className="flex items-center space-x-4">
-                    <div className="w-8 h-8 bg-[#1f3b2c] text-white rounded-full flex items-center justify-center text-sm font-medium">
-                      {index + 1}
-                    </div>
-                    <div>
-                      <p className="font-medium text-[#1f3b2c]">{product.name}</p>
-                      <p className="text-sm text-[#6b7280]">{product.quantity} units sold</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold text-[#1f3b2c]">₹{product.revenue.toLocaleString()}</p>
-                    <p className="text-sm text-[#6b7280]">Revenue</p>
-                  </div>
+            <h2 className="text-lg font-semibold text-[#1f3b2c] mb-6">Sales Trends</h2>
+            {data.salesChart.length > 0 ? (
+              <div>
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-[#6b7280] mb-2">Revenue Over Time</h3>
+                  <LineChart data={data.salesChart} dataKey="revenue" color="#10b981" height={200} />
                 </div>
-              ))}
-            </div>
+                <div className="mb-4">
+                  <h3 className="text-sm font-medium text-[#6b7280] mb-2">Orders Over Time</h3>
+                  <LineChart data={data.salesChart} dataKey="orders" color="#3b82f6" height={200} />
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-[#6b7280]">
+                No sales data available for the selected period
+              </div>
+            )}
           </div>
 
-          {/* Category Breakdown */}
-          <div className="bg-white border border-[#e2d4b7] rounded-lg p-6">
-            <h2 className="text-lg font-semibold text-[#1f3b2c] mb-6">Sales by Category</h2>
-            <div className="space-y-4">
-              {data.categoryBreakdown.map((category) => (
-                <div key={category.category} className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-sm font-medium text-[#1f3b2c] capitalize">{category.category}</span>
-                      <span className="text-sm text-[#6b7280]">{category.percentage}%</span>
-                    </div>
-                    <progress
-                      value={category.percentage}
-                      max={100}
-                      className="w-full h-2"
-                      aria-label={`Sales percentage for ${category.category}`}
-                    />
-                  </div>
-                  <div className="ml-4 text-right">
-                    <p className="text-sm font-medium text-[#1f3b2c]">₹{category.revenue.toLocaleString()}</p>
-                    <p className="text-xs text-[#6b7280]">{category.orders} orders</p>
-                  </div>
-                </div>
-              ))}
+          {/* Top Products */}
+          {!selectedProductId && data.topProducts.length > 0 && (
+            <div className="bg-white border border-[#e2d4b7] rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-[#1f3b2c] mb-6">Top Selling Products</h2>
+              <BarChart data={data.topProducts} dataKey="revenue" labelKey="name" color="#1f3b2c" height={300} />
             </div>
-          </div>
+          )}
+
+          {/* Category Breakdown */}
+          {data.categoryBreakdown.length > 0 && (
+            <div className="bg-white border border-[#e2d4b7] rounded-lg p-6">
+              <h2 className="text-lg font-semibold text-[#1f3b2c] mb-6">Sales by Category</h2>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-sm font-medium text-[#6b7280] mb-4">Revenue Distribution</h3>
+                  <PieChart data={data.categoryBreakdown} dataKey="revenue" labelKey="category" height={250} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-medium text-[#6b7280] mb-4">Category Performance</h3>
+                  <BarChart data={data.categoryBreakdown} dataKey="revenue" labelKey="category" color="#e2d4b7" height={250} />
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>

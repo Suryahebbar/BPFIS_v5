@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Seller } from '@/lib/models/seller';
-import { Product } from '@/lib/models/product';
+import { Seller, Product } from '@/lib/models/supplier';
 import { connectDB } from '@/lib/db';
+import mongoose from 'mongoose';
 
 export async function GET(
   request: NextRequest,
@@ -20,8 +20,12 @@ export async function GET(
     }
 
     // Get seller's products
-    const products = await Product.find({ sellerId: id, status: 'active' })
-      .select('name description price images category rating reviewCount inventory.createdAt')
+    const sellerObjectId = new mongoose.Types.ObjectId(id);
+    const products = await Product.find({ 
+      sellerId: sellerObjectId as any, 
+      status: 'active' as any 
+    })
+      .select('name description price images category createdAt')
       .sort({ createdAt: -1 })
       .lean();
 

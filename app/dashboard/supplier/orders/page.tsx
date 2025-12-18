@@ -7,16 +7,18 @@ import { withSupplierAuth } from '@/lib/supplier-auth';
 interface Order {
   _id: string;
   orderNumber: string;
-  customer: {
-    name: string;
-    phone: string;
-    address: {
-      street: string;
-      city: string;
-      state: string;
-      pincode: string;
+  customer?: {
+    name?: string;
+    phone?: string;
+    address?: {
+      street?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
     };
   };
+  customerName?: string;
+  customerPhone?: string;
   items: {
     productId: string;
     name: string;
@@ -43,6 +45,7 @@ export default function OrdersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [supplierId, setSupplierId] = useState<string>('');
 
   const tabs = useMemo(() => [
     { id: 'all', label: 'All Orders', count: 0 },
@@ -56,12 +59,26 @@ export default function OrdersPage() {
   const loadOrders = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // Get supplierId if not already set
+      let currentSupplierId = supplierId;
+      if (!currentSupplierId) {
+        const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          currentSupplierId = profileData.seller?._id || 'temp';
+          setSupplierId(currentSupplierId);
+        } else {
+          throw new Error('Failed to get supplier profile');
+        }
+      }
+      
       const params = new URLSearchParams({
         status: activeTab === 'all' ? '' : activeTab,
         search: searchTerm
       });
 
-      const response = await fetch(`/api/supplier/orders?${params}`, withSupplierAuth());
+      const response = await fetch(`/api/supplier/${currentSupplierId}/orders?${params}`, withSupplierAuth());
 
       if (!response.ok) {
         throw new Error('Failed to fetch orders');
@@ -75,7 +92,7 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchTerm]);
+  }, [activeTab, searchTerm, supplierId]);
 
   useEffect(() => {
     loadOrders();
@@ -83,12 +100,13 @@ export default function OrdersPage() {
 
   const handleStatusUpdate = async (orderId: string, newStatus: string) => {
     try {
-      const response = await fetch(`/api/supplier/orders/${orderId}/status`, withSupplierAuth({
-        method: 'PUT',
+      const currentSupplierId = supplierId || 'temp';
+      const response = await fetch(`/api/supplier/${currentSupplierId}/orders/${orderId}`, withSupplierAuth({
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ orderStatus: newStatus })
+        body: JSON.stringify({ status: newStatus })
       }));
 
       const data = await response.json();
@@ -125,6 +143,13 @@ export default function OrdersPage() {
       case 'refunded': return 'badge-info';
       default: return 'badge-neutral';
     }
+  };
+
+  const formatAmount = (amount: number) => {
+    return amount.toLocaleString('en-IN', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
   };
 
   // Update tab counts based on orders
@@ -242,7 +267,7 @@ export default function OrdersPage() {
                     Items
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
-                    Total {taxInclusive ? '(incl. tax)' : '(excl. tax)'}
+                    Total
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-[#6b7280] uppercase tracking-wider">
                     Payment
@@ -271,13 +296,13 @@ export default function OrdersPage() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div>
                         <div className="text-sm font-medium text-[var(--navy-blue)]">
-                          {order.customer.name}
+                          {order.customer?.name || order.customerName || 'Customer'}
                         </div>
                         <div className="text-xs text-[var(--gray-600)]">
-                          {order.customer.phone}
+                          {order.customer?.phone || order.customerPhone || 'N/A'}
                         </div>
                         <div className="text-xs text-[var(--gray-600)]">
-                          {order.customer.address.city}, {order.customer.address.state}
+                          {order.customer?.address?.city || 'N/A'}, {order.customer?.address?.state || 'N/A'}
                         </div>
                       </div>
                     </td>
@@ -299,9 +324,37 @@ export default function OrdersPage() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`badge ${getStatusColor(order.orderStatus)}`}>
-                        {order.orderStatus}
-                      </span>
+                      <div className="space-y-2">
+                        <span className={`badge ${getStatusColor(order.orderStatus)}`}>
+                          {order.orderStatus}
+                        </span>
+                        {/* Mini timeline for 3-day delivery */}
+                        <div className="flex items-center space-x-1">
+                          {['new', 'processing', 'shipped', 'delivered'].map((step, index) => {
+                            const isCompleted = order.orderStatus === step || 
+                              (order.orderStatus === 'delivered' && index <= 3) ||
+                              (order.orderStatus === 'shipped' && index <= 2) ||
+                              (order.orderStatus === 'processing' && index <= 1) ||
+                              (order.orderStatus === 'new' && index <= 0);
+                            
+                            return (
+                              <div key={step} className="flex items-center">
+                                <div className={`w-2 h-2 rounded-full ${
+                                  isCompleted ? 'bg-[var(--navy-blue)]' : 'bg-gray-300'
+                                }`} />
+                                {index < 3 && (
+                                  <div className={`w-3 h-0.5 ${
+                                    order.orderStatus === 'delivered' && index <= 2 ||
+                                    order.orderStatus === 'shipped' && index <= 1 ||
+                                    order.orderStatus === 'processing' && index <= 0
+                                      ? 'bg-[var(--navy-blue)]' : 'bg-gray-300'
+                                  }`} />
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <div className="flex items-center justify-end space-x-2">

@@ -30,6 +30,7 @@ export default function ReviewsPage() {
   const [success, setSuccess] = useState('');
   const [respondingTo, setRespondingTo] = useState<string | null>(null);
   const [responseText, setResponseText] = useState('');
+  const [supplierId, setSupplierId] = useState<string>('');
 
   const tabs = useMemo(() => [
     { id: 'all', label: 'All Reviews', count: 0 },
@@ -42,13 +43,27 @@ export default function ReviewsPage() {
   const loadReviews = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // Get supplierId if not already set
+      let currentSupplierId = supplierId;
+      if (!currentSupplierId) {
+        const profileResponse = await fetch('/api/supplier', withSupplierAuth());
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json();
+          currentSupplierId = profileData.seller?._id || 'temp';
+          setSupplierId(currentSupplierId);
+        } else {
+          throw new Error('Failed to get supplier profile');
+        }
+      }
+      
       const params = new URLSearchParams({
         sentiment: activeTab === 'all' || activeTab === 'flagged' ? '' : activeTab,
         flagged: activeTab === 'flagged' ? 'true' : 'false',
         search: searchTerm
       });
 
-      const response = await fetch(`/api/supplier/reviews?${params}`, withSupplierAuth());
+      const response = await fetch(`/api/supplier/${currentSupplierId}/reviews?${params}`, withSupplierAuth());
 
       if (!response.ok) {
         throw new Error('Failed to fetch reviews');
@@ -62,7 +77,7 @@ export default function ReviewsPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, searchTerm]);
+  }, [activeTab, searchTerm, supplierId]);
 
   useEffect(() => {
     loadReviews();
@@ -75,7 +90,8 @@ export default function ReviewsPage() {
     }
 
     try {
-      const response = await fetch(`/api/supplier/reviews/${reviewId}/respond`, withSupplierAuth({
+      const currentSupplierId = supplierId || 'temp';
+      const response = await fetch(`/api/supplier/${currentSupplierId}/reviews/${reviewId}/respond`, withSupplierAuth({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -101,7 +117,8 @@ export default function ReviewsPage() {
 
   const handleFlag = async (reviewId: string, flagged: boolean) => {
     try {
-      const response = await fetch(`/api/supplier/reviews/${reviewId}/flag`, withSupplierAuth({
+      const currentSupplierId = supplierId || 'temp';
+      const response = await fetch(`/api/supplier/${currentSupplierId}/reviews/${reviewId}/flag`, withSupplierAuth({
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
